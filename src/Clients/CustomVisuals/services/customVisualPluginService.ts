@@ -113,6 +113,10 @@ module powerbi.visuals.visualPluginFactory {
             // Force Graph
             createPlugin(this.customVisualPlugins, powerbi.visuals.plugins.forceGraph, () => new samples.ForceGraph());
 
+            createPlugin(this.customVisualPlugins, powerbi.visuals.plugins.dropdownSlicer, () => new samples.DropdownSlicer({
+                behavior: new samples.DropdownSlicerWebBehavior()
+            }));
+            
             // Mekko Chart
             createPlugin(this.customVisualPlugins, powerbi.visuals.plugins.mekkoChart, () => new samples.MekkoChart({
                 chartType: samples.MekkoChartType.HundredPercentStackedColumn,

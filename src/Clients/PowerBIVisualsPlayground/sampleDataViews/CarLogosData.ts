@@ -32,7 +32,7 @@ module powerbi.visuals.sampleDataViews {
         public name: string = "CarLogosData";
         public displayName: string = "Car logos";
 
-        public visuals: string[] = ['chicletSlicer'];
+        public visuals: string[] = ['chicletSlicer', 'dropdownSlicer'];
 
         private sampleData: number[] = [5, 10, 15, 20, 25];
         private categoryValues: string[] = ["BMW", "Mercedes", "Honda", "Toyota", "Ferrari"];

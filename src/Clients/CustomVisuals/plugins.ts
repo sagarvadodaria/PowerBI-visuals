@@ -135,6 +135,12 @@ module powerbi.visuals.plugins {
         create: () => new samples.ChordChart()
     };
     
+    export var dropdownSlicer: IVisualPlugin = {
+        name: "dropdownSlicer",
+        capabilities: samples.DropdownSlicer.capabilities,
+        create: () => new samples.DropdownSlicer()
+    };
+    
      export let mekkoChart: IVisualPlugin = {
         name: 'mekkoChart',
         watermarkKey: 'mekko',

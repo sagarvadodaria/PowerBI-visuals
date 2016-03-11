@@ -26,7 +26,6 @@
         loadMoreData: () => void;
         baseContainer: D3.Selection;
         rows: number;
-
         rowHeight: number;
         viewport: IViewport;
         scrollEnabled: boolean;
@@ -41,7 +40,6 @@
         private visibleGroupContainer: D3.Selection;
         private scrollContainer: D3.Selection;
         private dropdown: D3.Selection;
-        private ddLabel: D3.Selection;
         private static defaultRowHeight = 1;
 
         public constructor(options: DropdownViewOptions) {
@@ -54,17 +52,19 @@
             this.scrollContainer = options.baseContainer
                 .append('div')
                 .attr('class', 'scrollRegion');
+
             this.visibleGroupContainer = this.scrollContainer
                 .append('div')
                 .attr('class', 'visibleGroup');
+
             this.dropdown = this.visibleGroupContainer
                 .append('select')
                 .attr('class', 'select');
+
             this.dropdown
                 .append('option')
                 .attr('class', 'option')
                 .text('Select All');
-            this.ddLabel = this.visibleGroupContainer.insert("span", "select").attr("class", "ddLabel");
 
             DropdownView.SetDefaultOptions(options);
         }
@@ -124,33 +124,19 @@
             optionSelection.order();
             var optionUpdateSelection = this.dropdown.selectAll('.row:not(.transitioning)');
             optionUpdateSelection.call(d => options.update(d));
+            
             optionSelection
                 .exit()
                 .call(d => options.exit(d))
                 .remove();
         }
-
     }
 
     export const dropdownslicerProps = {
-        general: {
-            outlineColor: <powerbi.DataViewObjectPropertyIdentifier>{ objectName: 'general', propertyName: 'outlineColor' },
-            outlineWeight: <powerbi.DataViewObjectPropertyIdentifier>{ objectName: 'general', propertyName: 'outlineWeight' },
-
-            count: <powerbi.DataViewObjectPropertyIdentifier>{ objectName: 'general', propertyName: 'count' },
-        },
-        header: {
-            show: <powerbi.DataViewObjectPropertyIdentifier>{ objectName: 'header', propertyName: 'show' },
-            fontColor: <powerbi.DataViewObjectPropertyIdentifier>{ objectName: 'header', propertyName: 'fontColor' },
-            background: <powerbi.DataViewObjectPropertyIdentifier>{ objectName: 'header', propertyName: 'background' },
-            outline: <powerbi.DataViewObjectPropertyIdentifier>{ objectName: 'header', propertyName: 'outline' },
-            textSize: <powerbi.DataViewObjectPropertyIdentifier>{ objectName: 'header', propertyName: 'textSize' },
-        },
-        items: {
-            fontColor: <powerbi.DataViewObjectPropertyIdentifier>{ objectName: 'items', propertyName: 'fontColor' },
-            background: <powerbi.DataViewObjectPropertyIdentifier>{ objectName: 'items', propertyName: 'background' },
-            outline: <powerbi.DataViewObjectPropertyIdentifier>{ objectName: 'items', propertyName: 'outline' },
-            textSize: <powerbi.DataViewObjectPropertyIdentifier>{ objectName: 'items', propertyName: 'textSize' },
+        format: {
+            fontColor: <powerbi.DataViewObjectPropertyIdentifier>{ objectName: 'format', propertyName: 'fontColor' },
+            background: <powerbi.DataViewObjectPropertyIdentifier>{ objectName: 'format', propertyName: 'background' },
+            textSize: <powerbi.DataViewObjectPropertyIdentifier>{ objectName: 'format', propertyName: 'textSize' },
         },
         selectedPropertyIdentifier: <powerbi.DataViewObjectPropertyIdentifier>{ objectName: 'general', propertyName: 'selected' },
         filterPropertyIdentifier: <powerbi.DataViewObjectPropertyIdentifier>{ objectName: 'general', propertyName: 'filter' },
@@ -177,49 +163,19 @@
         selectable?: boolean;
     }
 
-
     export interface DropdownSlicerSettings {
         general: {
             rows: number;
         };
-        margin: IMargin;
-        header: {
-            borderBottomWidth: number;
-            show: boolean;
-            outline: string;
-            fontColor: string;
-            background: string;
-            textSize: number;
-            outlineColor: string;
-            outlineWeight: number;
-            title: string;
-        };
-        headerText: {
-            marginLeft: number;
-            marginTop: number;
-        };
         slicerText: {
             textSize: number;
-            height: number;
-            width: number;
             fontColor: string;
-            hoverColor: string;
-            selectedColor: string;
-            unselectedColor: string;
-            disabledColor: string;
-            marginLeft: number;
-            outline: string;
             background: string;
-            transparency: number;
-            outlineColor: string;
-            outlineWeight: number;
-            borderStyle: string;
         };
         slicerItemContainer: {
             marginTop: number;
             marginLeft: number;
         };
-
     }
 
     export class DropdownSlicer implements IVisual {
@@ -235,13 +191,11 @@
                     kind: powerbi.VisualDataRoleKind.Measure,
                     displayName: powerbi.data.createDisplayNameGetter('Role_DisplayName_Values'),
                 }
-
             ],
             objects: {
                 general: {
                     displayName: powerbi.data.createDisplayNameGetter('Visual_General'),
                     properties: {
-
                         selected: {
                             type: { bool: true }
                         },
@@ -258,11 +212,28 @@
                             type: { formatting: { formatString: true } },
                         },
                     },
-                }
+                },
+                format: {
+                    displayName: "Format",
+                    properties: {
+                        fontColor: {
+                            displayName: powerbi.data.createDisplayNameGetter('Visual_FontColor'),
+                            type: { fill: { solid: { color: true } } }
+                        },
+                        background: {
+                            displayName: powerbi.data.createDisplayNameGetter('Visual_Background'),
+                            type: { fill: { solid: { color: true } } }
+                        },
+                        textSize: {
+                            displayName: powerbi.data.createDisplayNameGetter('Visual_TextSize'),
+                            type: { numeric: true }
+                        },
+                    }
+                },
             },
             dataViewMappings: [{
                 conditions: [
-                    { 'Category': { max: 1 }, 'Image': { min: 0, max: 1 }, 'Values': { min: 0, max: 1 } }],
+                    { 'Category': { max: 1 }, 'Values': { min: 0, max: 1 } }],
                 categorical: {
                     categories: {
                         for: { in: 'Category' },
@@ -314,54 +285,17 @@
                 general: {
                     rows: 1
                 },
-                margin: {
-                    top: 50,
-                    bottom: 50,
-                    right: 50,
-                    left: 50
-                },
-                header: {
-                    borderBottomWidth: 1,
-                    show: true,
-                    outline: 'BottomOnly',
-                    fontColor: '#a6a6a6',
-                    background: '#ffffff',
-                    textSize: 10,
-                    outlineColor: '#a6a6a6',
-                    outlineWeight: 1,
-                    title: '',
-                },
-                headerText: {
-                    marginLeft: 8,
-                    marginTop: 0
-                },
                 slicerText: {
-                    textSize: 10,
-                    height: 0,
-                    width: 0,
+                    textSize: 12,
                     fontColor: '#666666',
-                    hoverColor: '#212121',
-                    selectedColor: '#BDD7EE',
-                    unselectedColor: '#ffffff',
-                    disabledColor: 'grey',
-                    marginLeft: 8,
-                    outline: 'Frame',
-                    background: '#ffffff',
-                    transparency: 0,
-                    outlineColor: '#000000',
-                    outlineWeight: 1,
-                    borderStyle: 'Cut',
-
+                    background: '#ffffff'
                 },
                 slicerItemContainer: {
-                    // The margin is assigned in the less file. This is needed for the height calculations.
                     marginTop: 5,
                     marginLeft: 0,
                 }
-
             };
         }
-
 
         constructor(options?: DropdownSlicerConstructorOptions) {
             if (options) {
@@ -389,25 +323,11 @@
             var defaultSettings: DropdownSlicerSettings = this.DefaultStyleProperties();
             var objects: DataViewObjects = dataView.metadata.objects;
             if (objects) {
-                //defaultSettings.general.outlineColor = powerbi.DataViewObjects.getFillColor(objects, slicerProps.general.outlineColor, defaultSettings.general.outlineColor);
-                //defaultSettings.general.outlineWeight = powerbi.DataViewObjects.getValue<number>(objects, slicerProps.general.outlineWeight, defaultSettings.general.outlineWeight);
-
-                defaultSettings.header.show = powerbi.DataViewObjects.getValue<boolean>(objects, dropdownslicerProps.header.show, defaultSettings.header.show);
-                defaultSettings.header.fontColor = powerbi.DataViewObjects.getFillColor(objects, dropdownslicerProps.header.fontColor, defaultSettings.header.fontColor);
-                let headerBackground = powerbi.DataViewObjects.getFillColor(objects, dropdownslicerProps.header.background);
-                if (headerBackground)
-                    defaultSettings.header.background = headerBackground;
-                defaultSettings.header.outline = powerbi.DataViewObjects.getValue<string>(objects, dropdownslicerProps.header.outline, defaultSettings.header.outline);
-                defaultSettings.header.textSize = powerbi.DataViewObjects.getValue<number>(objects, dropdownslicerProps.header.textSize, defaultSettings.header.textSize);
-
-                // defaultSettings.slicerText.color = powerbi.DataViewObjects.getFillColor(objects, slicerProps.items.fontColor, defaultSettings.slicerText.color);
-                let textBackground = powerbi.DataViewObjects.getFillColor(objects, dropdownslicerProps.items.background);
+                defaultSettings.slicerText.fontColor = powerbi.DataViewObjects.getFillColor(objects, dropdownslicerProps.format.fontColor, defaultSettings.slicerText.fontColor);
+                let textBackground = powerbi.DataViewObjects.getFillColor(objects, dropdownslicerProps.format.background);
                 if (textBackground)
                     defaultSettings.slicerText.background = textBackground;
-
-                defaultSettings.slicerText.outline = powerbi.DataViewObjects.getValue<string>(objects, dropdownslicerProps.items.outline, defaultSettings.slicerText.outline);
-                defaultSettings.slicerText.textSize = powerbi.DataViewObjects.getValue<number>(objects, dropdownslicerProps.items.textSize, defaultSettings.slicerText.textSize);
-
+                defaultSettings.slicerText.textSize = powerbi.DataViewObjects.getValue<number>(objects, dropdownslicerProps.format.textSize, defaultSettings.slicerText.textSize);
             }
 
             var categories: DataViewCategoricalColumn = dataView.categorical.categories[0];
@@ -418,7 +338,6 @@
                 slicerDataPoints: converter.dataPoints,
             };
 
-            // Override hasSelection if a objects contained more scopeIds than selections we found in the data
             slicerData.hasSelectionOverride = converter.hasSelectionOverride;
 
             return slicerData;
@@ -475,12 +394,25 @@
 
             var objectName = options.objectName;
             switch (objectName) {
+                case 'format':
+                    return this.enumerateFormat(data);
                 case 'general':
                     return this.enumerateGeneral(data);
             }
         }
 
-
+        private enumerateFormat(data: DropdownSlicerData): VisualObjectInstance[] {
+            var slicerSettings: DropdownSlicerSettings = this.settings;
+            return [{
+                selector: null,
+                objectName: 'format',
+                properties: {
+                    textSize: slicerSettings.slicerText.textSize,
+                    background: slicerSettings.slicerText.background,
+                    fontColor: slicerSettings.slicerText.fontColor,
+                }
+            }];
+        }
 
         private enumerateGeneral(data: DropdownSlicerData): VisualObjectInstance[] {
             var slicerSettings: DropdownSlicerSettings = this.settings;
@@ -489,30 +421,24 @@
                 selector: null,
                 objectName: 'general',
                 properties: {
-
                     rows: slicerSettings.general.rows,
-
                 }
             }];
         }
 
         private updateInternal(resetScrollbarPosition: boolean) {
             this.updateSlicerBodyDimensions();
-
             var localizedSelectAllText: string = 'Select All';
             var data = DropdownSlicer.converter(this.dataView, localizedSelectAllText, this.interactivityService);
             if (!data) {
                 this.dropdownView.empty();
                 return;
             }
-            data.slicerSettings.header.outlineWeight = data.slicerSettings.header.outlineWeight < 0 ? 0 : data.slicerSettings.header.outlineWeight;
             this.slicerData = data;
             this.settings = this.slicerData.slicerSettings;
-
             this.dropdownView
                 .rowHeight(1)
                 .rows(this.settings.general.rows)
-
                 .data(data.slicerDataPoints,
                 (d: DropdownSlicerDataPoint) => $.inArray(d, data.slicerDataPoints),
                 resetScrollbarPosition)
@@ -543,18 +469,12 @@
                 var settings: DropdownSlicerSettings = this.settings;
                 var data = this.slicerData;
                 if (data && settings) {
-
-                    d3.select('.ddLabel')
-                        .text(settings.header.title.trim() !== "" ? settings.header.title.trim() + " :      " : this.slicerData.categorySourceName + " :      ")
-                        .style({
-
-                            'border-color': settings.header.outlineColor,
-                            'font-weight': "bold",
-                            'color': settings.header.fontColor,
-                            'background-color': settings.header.background,
-                            'font-size': PixelConverter.fromPoint(settings.header.textSize),
-                        });
-
+                    var dropdown = d3.select(".select");
+                    dropdown.style({
+                        'font-size': settings.slicerText.textSize + "px",
+                        'color': settings.slicerText.fontColor,
+                        'background': settings.slicerText.background
+                    });
                     var slicerText = rowSelection.text(d=> d.category);
 
                     if (this.interactivityService && this.slicerBody) {
@@ -609,8 +529,7 @@
 
         private getSlicerBodyViewport(currentViewport: IViewport): IViewport {
             var settings = this.settings;
-            var headerHeight = (settings.header.show) ? 1 : 0;
-            var slicerBodyHeight = currentViewport.height - (headerHeight + settings.header.borderBottomWidth);
+            var slicerBodyHeight = currentViewport.height;
             return {
                 height: slicerBodyHeight,
                 width: currentViewport.width
@@ -783,7 +702,6 @@
         slicerItemContainers: D3.Selection;
         slicerItemLabels: D3.Selection;
         slicerItemInputs: D3.Selection;
-
         dataPoints: DropdownSlicerDataPoint[];
         interactivityService: IInteractivityService;
         slicerSettings: DropdownSlicerSettings;
@@ -810,11 +728,7 @@
                 d3.event.preventDefault();
                 if (x === "Select All") {
                     selectionHandler.handleClearSelection();
-                    for (var i = 0; i < this.dataPoints.length; i++) {
-
-                        selectionHandler.handleSelection(this.dataPoints[i], true /* isMultiSelect */);
-                        selectionHandler.persistSelectionFilter(filterPropertyId);
-                    }
+                    selectionHandler.persistSelectionFilter(filterPropertyId);
                 }
                 else {
                     var elementPos = this.dataPoints.map(function (x) { return x.category; }).indexOf(x);
@@ -832,9 +746,7 @@
         }
 
         public renderSelection(hasSelection: boolean): void {
-            if (!hasSelection && !this.interactivityService.isSelectionModeInverted()) {
-                this.slicers.style('background', this.slicerSettings.slicerText.unselectedColor);
-            }
+
         }
     }
 }

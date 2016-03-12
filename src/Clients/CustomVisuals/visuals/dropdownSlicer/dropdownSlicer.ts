@@ -133,10 +133,10 @@
     }
 
     export const dropdownslicerProps = {
-        format: {
-            fontColor: <powerbi.DataViewObjectPropertyIdentifier>{ objectName: 'format', propertyName: 'fontColor' },
-            background: <powerbi.DataViewObjectPropertyIdentifier>{ objectName: 'format', propertyName: 'background' },
-            textSize: <powerbi.DataViewObjectPropertyIdentifier>{ objectName: 'format', propertyName: 'textSize' },
+        dropdown: {
+            fontColor: <powerbi.DataViewObjectPropertyIdentifier>{ objectName: 'dropdown', propertyName: 'fontColor' },
+            background: <powerbi.DataViewObjectPropertyIdentifier>{ objectName: 'dropdown', propertyName: 'background' },
+            textSize: <powerbi.DataViewObjectPropertyIdentifier>{ objectName: 'dropdown', propertyName: 'textSize' },
         },
         selectedPropertyIdentifier: <powerbi.DataViewObjectPropertyIdentifier>{ objectName: 'general', propertyName: 'selected' },
         filterPropertyIdentifier: <powerbi.DataViewObjectPropertyIdentifier>{ objectName: 'general', propertyName: 'filter' },
@@ -213,8 +213,8 @@
                         },
                     },
                 },
-                format: {
-                    displayName: "Format",
+                dropdown: {
+                    displayName: "Dropdown",
                     properties: {
                         fontColor: {
                             displayName: powerbi.data.createDisplayNameGetter('Visual_FontColor'),
@@ -323,11 +323,11 @@
             var defaultSettings: DropdownSlicerSettings = this.DefaultStyleProperties();
             var objects: DataViewObjects = dataView.metadata.objects;
             if (objects) {
-                defaultSettings.slicerText.fontColor = powerbi.DataViewObjects.getFillColor(objects, dropdownslicerProps.format.fontColor, defaultSettings.slicerText.fontColor);
-                let textBackground = powerbi.DataViewObjects.getFillColor(objects, dropdownslicerProps.format.background);
+                defaultSettings.slicerText.fontColor = powerbi.DataViewObjects.getFillColor(objects, dropdownslicerProps.dropdown.fontColor, defaultSettings.slicerText.fontColor);
+                let textBackground = powerbi.DataViewObjects.getFillColor(objects, dropdownslicerProps.dropdown.background);
                 if (textBackground)
                     defaultSettings.slicerText.background = textBackground;
-                defaultSettings.slicerText.textSize = powerbi.DataViewObjects.getValue<number>(objects, dropdownslicerProps.format.textSize, defaultSettings.slicerText.textSize);
+                defaultSettings.slicerText.textSize = powerbi.DataViewObjects.getValue<number>(objects, dropdownslicerProps.dropdown.textSize, defaultSettings.slicerText.textSize);
             }
 
             var categories: DataViewCategoricalColumn = dataView.categorical.categories[0];
@@ -394,18 +394,18 @@
 
             var objectName = options.objectName;
             switch (objectName) {
-                case 'format':
-                    return this.enumerateFormat(data);
+                case 'dropdown':
+                    return this.enumerateDropdown(data);
                 case 'general':
                     return this.enumerateGeneral(data);
             }
         }
 
-        private enumerateFormat(data: DropdownSlicerData): VisualObjectInstance[] {
+        private enumerateDropdown(data: DropdownSlicerData): VisualObjectInstance[] {
             var slicerSettings: DropdownSlicerSettings = this.settings;
             return [{
                 selector: null,
-                objectName: 'format',
+                objectName: 'dropdown',
                 properties: {
                     textSize: slicerSettings.slicerText.textSize,
                     background: slicerSettings.slicerText.background,

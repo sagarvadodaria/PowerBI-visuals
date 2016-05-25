@@ -61,11 +61,6 @@
                 .append('select')
                 .attr('class', 'select');
 
-            this.dropdown
-                .append('option')
-                .attr('class', 'option')
-                .text('Select All');
-
             DropdownView.SetDefaultOptions(options);
         }
 
@@ -114,14 +109,14 @@
             var options = this.options;
             var optionSelection = this.dropdown.selectAll(".row")
                 .data(this._data);
-
+           
             optionSelection
                 .enter()
                 .append("option")
                 .classed('row', true)
                 .call(d => options.enter(d));
 
-            optionSelection.order();
+            //optionSelection.order();
             var optionUpdateSelection = this.dropdown.selectAll('.row:not(.transitioning)');
             optionUpdateSelection.call(d => options.update(d));
             
@@ -132,7 +127,7 @@
         }
     }
 
-    export const dropdownslicerProps = {
+    export var dropdownslicerProps = {
         dropdown: {
             fontColor: <powerbi.DataViewObjectPropertyIdentifier>{ objectName: 'dropdown', propertyName: 'fontColor' },
             background: <powerbi.DataViewObjectPropertyIdentifier>{ objectName: 'dropdown', propertyName: 'background' },
@@ -296,6 +291,7 @@
                 }
             };
         }
+        private static isFirstLoad: boolean = false;
 
         constructor(options?: DropdownSlicerConstructorOptions) {
             if (options) {
@@ -324,7 +320,7 @@
             var objects: DataViewObjects = dataView.metadata.objects;
             if (objects) {
                 defaultSettings.slicerText.fontColor = powerbi.DataViewObjects.getFillColor(objects, dropdownslicerProps.dropdown.fontColor, defaultSettings.slicerText.fontColor);
-                let textBackground = powerbi.DataViewObjects.getFillColor(objects, dropdownslicerProps.dropdown.background);
+                var textBackground = powerbi.DataViewObjects.getFillColor(objects, dropdownslicerProps.dropdown.background);
                 if (textBackground)
                     defaultSettings.slicerText.background = textBackground;
                 defaultSettings.slicerText.textSize = powerbi.DataViewObjects.getValue<number>(objects, dropdownslicerProps.dropdown.textSize, defaultSettings.slicerText.textSize);
@@ -353,9 +349,11 @@
             this.settings = DropdownSlicer.DefaultStyleProperties();
 
             this.initContainer();
+           
         }
 
         public update(options: VisualUpdateOptions): void {
+                      
             if (!options ||
                 !options.dataViews ||
                 !options.dataViews[0] ||
@@ -378,8 +376,9 @@
             else {
                 this.currentViewport = options.viewport;
             }
-
+           
             this.updateInternal(resetScrollbarPosition);
+           
         }
 
         public onResizing(finalViewport: IViewport): void {
@@ -462,7 +461,9 @@
                 });
 
             var rowEnter = (rowSelection: D3.Selection) => {
-
+                if (rowSelection.length > 0 && rowSelection[0].length == 0) {
+                    DropdownSlicer.isFirstLoad = true;
+                }
             };
 
             var rowUpdate = (rowSelection: D3.Selection) => {
@@ -497,6 +498,14 @@
                             hasSelectionOverride: data.hasSelectionOverride
                         });
                     }
+
+                    if (DropdownSlicer.isFirstLoad) {
+                        DropdownSlicer.isFirstLoad = false;
+                        var event = document.createEvent('Event');
+                        event.initEvent('change', true, true);
+                        dropdown.node().dispatchEvent(event);
+                    }
+
                 }
             };
 
@@ -724,7 +733,7 @@
             this.interactivityService = options.interactivityService;
             this.slicerSettings = options.slicerSettings;
             slicers.on("change", (data, index) => {
-                let x: any = slicers.property("value");
+                var x: any = slicers.property("value");
                 d3.event.preventDefault();
                 if (x === "Select All") {
                     selectionHandler.handleClearSelection();

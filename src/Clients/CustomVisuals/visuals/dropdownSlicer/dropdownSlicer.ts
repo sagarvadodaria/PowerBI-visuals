@@ -253,6 +253,7 @@
                 roles: ['Category']
             },
             suppressDefaultTitle: true,
+            disableFocusMode:true
         };
         private element: JQuery;
         private currentViewport: IViewport;

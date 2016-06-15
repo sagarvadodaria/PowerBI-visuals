@@ -24,7 +24,7 @@
  *  THE SOFTWARE.
  */
 
-
+/// <reference path="../_references.ts"/>
 
 module powerbitests {
     import ILegend = powerbi.visuals.ILegend;
@@ -49,7 +49,7 @@ module powerbitests {
 
             element = powerbitests.helpers.testDom('500', '500');
             hostServices = powerbitests.mocks.createVisualHostServices();
-            
+
             // Allow multiselect
             hostServices.canSelect = () => true;
             interactivityService = powerbi.visuals.createInteractivityService(hostServices);
@@ -146,7 +146,22 @@ module powerbitests {
             }, DefaultWaitForRender);
         });
 
-        it('legend dom validation incremental build', (done) => {    
+        it('legend dom validation three legend items but two share same identity but are on different layers', (done) => {
+            let legendData: powerbi.visuals.LegendDataPoint[] = [
+                { label: 'ACCESS_VIOLA...', color: '#ff0000', icon: LegendIcon.Line, identity: createSelectionIdentity(1), selected: false, layerNumber: 0 },
+                { label: 'ACCESS_VIOLA...', color: '#ff0000', icon: LegendIcon.Line, identity: createSelectionIdentity(1), selected: false, layerNumber: 1 },
+                { label: 'BREAKPOINT', color: '#00ff00', icon: LegendIcon.Line, identity: createSelectionIdentity(3), selected: false, layerNumber: 0 }
+            ];
+            legend.drawLegend({ dataPoints: legendData }, viewport);
+            setTimeout(() => {
+                expect($('.legendItem').length).toBe(3);
+                expect($('.legendText').length).toBe(3);
+                expect($('.legendIcon').length).toBe(3);
+                done();
+            }, DefaultWaitForRender);
+        });
+
+        it('legend dom validation incremental build', (done) => {
             // Draw the legend once with the 3 states
             legend.drawLegend({ dataPoints: legendData }, viewport);
             setTimeout(() => {
@@ -184,43 +199,43 @@ module powerbitests {
             });
 
             it('Click first legend', () => {
-                (<any>icons.first()).d3Click(0, 0);
+                icons.first().d3Click(0, 0);
                 helpers.assertColorsMatch(icons[0].style.fill, '#ff0000');
                 helpers.assertColorsMatch(icons[1].style.fill, '#a6a6a6');
                 helpers.assertColorsMatch(icons[2].style.fill, '#a6a6a6');
             });
 
             it('Click the last legend item, should just select current and clear others', () => {
-                (<any>icons.first()).d3Click(0, 0);
+                icons.first().d3Click(0, 0);
                 helpers.assertColorsMatch(icons[0].style.fill, '#ff0000');
                 helpers.assertColorsMatch(icons[1].style.fill, '#a6a6a6');
                 helpers.assertColorsMatch(icons[2].style.fill, '#a6a6a6');
 
-                (<any>icons.last()).d3Click(0, 0);
+                icons.last().d3Click(0, 0);
                 helpers.assertColorsMatch(icons[0].style.fill, '#a6a6a6');
                 helpers.assertColorsMatch(icons[1].style.fill, '#a6a6a6');
                 helpers.assertColorsMatch(icons[2].style.fill, '#00ff00');
             });
 
             it('Control + Click legend item, should multiselect', () => {
-                (<any>icons.last()).d3Click(0, 0);
+                icons.last().d3Click(0, 0);
                 helpers.assertColorsMatch(icons[0].style.fill, '#a6a6a6');
                 helpers.assertColorsMatch(icons[1].style.fill, '#a6a6a6');
                 helpers.assertColorsMatch(icons[2].style.fill, '#00ff00');
 
-                (<any>icons.first()).d3Click(0, 0, powerbitests.helpers.ClickEventType.CtrlKey);
+                icons.first().d3Click(0, 0, powerbitests.helpers.ClickEventType.CtrlKey);
                 helpers.assertColorsMatch(icons[0].style.fill, '#ff0000');
                 helpers.assertColorsMatch(icons[1].style.fill, '#a6a6a6');
                 helpers.assertColorsMatch(icons[2].style.fill, '#00ff00');
             });
 
             it('Click the clear catcher should clear the legend selection', () => {
-                (<any>icons.first()).d3Click(0, 0);
+                icons.first().d3Click(0, 0);
                 helpers.assertColorsMatch(icons[0].style.fill, '#ff0000');
                 helpers.assertColorsMatch(icons[1].style.fill, '#a6a6a6');
                 helpers.assertColorsMatch(icons[2].style.fill, '#a6a6a6');
 
-                (<any>($('.clearCatcher').first())).d3Click(0, 0);
+                $('.clearCatcher').first().d3Click(0, 0);
                 helpers.assertColorsMatch(icons[0].style.fill, '#ff0000');
                 helpers.assertColorsMatch(icons[1].style.fill, '#0000ff');
                 helpers.assertColorsMatch(icons[2].style.fill, '#00ff00');
@@ -248,14 +263,14 @@ module powerbitests {
                 });
 
                 it('click selects corresponding item', () => {
-                    (<any>icons.first()).d3Click(0, 0);
+                    icons.first().d3Click(0, 0);
                     helpers.assertColorsMatch(icons[0].style.fill, '#ff0000');
                     helpers.assertColorsMatch(icons[1].style.fill, '#a6a6a6');
                     helpers.assertColorsMatch(icons[2].style.fill, '#a6a6a6');
                 });
 
                 it('ctrl+click adds item to current selection', () => {
-                    (<any>icons.first()).d3Click(0, 0, powerbitests.helpers.ClickEventType.CtrlKey);
+                    icons.first().d3Click(0, 0, powerbitests.helpers.ClickEventType.CtrlKey);
                     helpers.assertColorsMatch(icons[0].style.fill, '#ff0000');
                     helpers.assertColorsMatch(icons[1].style.fill, '#0000ff');
                     helpers.assertColorsMatch(icons[2].style.fill, '#a6a6a6');
@@ -324,7 +339,7 @@ module powerbitests {
             legend.changeOrientation(LegendPosition.Right);
             legend.drawLegend({ dataPoints: legendData, title: 'This is a super long title and should be truncated by now' }, viewport);
             powerbi.visuals.SVGUtil.flushAllD3Transitions();
-            
+
             // 2 different possible values
             // 'This is a super long ti… in Windows
             // 'This is a super long ti … in Mac OS
@@ -531,7 +546,7 @@ module powerbitests {
             legend.drawLegend({ dataPoints: legendData }, { height: 100, width: 900 });
             powerbi.visuals.SVGUtil.flushAllD3Transitions();
             expect($('.navArrow').length).toBe(1);
-            (<any>$('.navArrow').first()).d3Click(0, 0);
+            $('.navArrow').first().d3Click(0, 0);
             expect($('.navArrow').length).toBe(2);
         });
 
@@ -541,7 +556,7 @@ module powerbitests {
             legend.drawLegend({ dataPoints: legendData }, { height: 100, width: 1000 });
             powerbi.visuals.SVGUtil.flushAllD3Transitions();
             expect($('.navArrow').length).toBe(1);
-            (<any>$('.navArrow').first()).d3Click(0, 0);
+            $('.navArrow').first().d3Click(0, 0);
             expect($('.navArrow').length).toBe(2);
         });
 
@@ -551,9 +566,9 @@ module powerbitests {
             legend.drawLegend({ dataPoints: legendData, fontSize: 8 }, { height: 100, width: 900 });
             powerbi.visuals.SVGUtil.flushAllD3Transitions();
             expect($('.navArrow').length).toBe(1);
-            (<any>$('.navArrow').first()).d3Click(0, 0);
+            $('.navArrow').first().d3Click(0, 0);
             expect($('.navArrow').length).toBe(2);
-            (<any>$('.navArrow').last()).d3Click(0, 0);
+            $('.navArrow').last().d3Click(0, 0);
             expect($('.navArrow').length).toBe(1);
         });
 
@@ -563,9 +578,9 @@ module powerbitests {
             legend.drawLegend({ dataPoints: legendData }, { height: 500, width: 1000 });
             powerbi.visuals.SVGUtil.flushAllD3Transitions();
             expect($('.navArrow').length).toBe(1);
-            (<any>$('.navArrow').first()).d3Click(0, 0);
+            $('.navArrow').first().d3Click(0, 0);
             expect($('.navArrow').length).toBe(2);
-            (<any>$('.navArrow').last()).d3Click(0, 0);
+            $('.navArrow').last().d3Click(0, 0);
             expect($('.navArrow').length).toBe(1);
         });
 
@@ -574,7 +589,7 @@ module powerbitests {
             legend.changeOrientation(LegendPosition.Top);
             legend.drawLegend({ fontSize: 40, dataPoints: legendData }, { height: 500, width: 1000 });
             powerbi.visuals.SVGUtil.flushAllD3Transitions();
-            (<any>$('.navArrow').first()).d3Click(0, 0);
+            $('.navArrow').first().d3Click(0, 0);
             let firstArrowPosition = getPosition($('.navArrow').first()[0]);
             let firstArrowY = firstArrowPosition.top;
             let firstArrowHeight = firstArrowPosition.height;
@@ -699,11 +714,9 @@ module powerbitests {
             it('legend dom validation three legend items last item name and measure', (done) => {
                 legend.drawLegend({ dataPoints: legendData }, viewport);
                 setTimeout(() => {
-                    expect($('.interactive-legend .title').text()).toBe(legendData[0].category);
-                    
-                    // last item is actually the second item since values should be placed in a two-row table.
-                    expect($('.interactive-legend .item').last().find('.itemName').text().trim()).toBe('California');
-                    expect($('.interactive-legend .item').last().find('.itemMeasure').text().trim()).toBe('5');
+                    expect($('.interactive-legend .title').text()).toBe(legendData[0].category);                    
+                    expect($('.interactive-legend .item').last().find('.itemName').text().trim()).toBe('Texas');
+                    expect($('.interactive-legend .item').last().find('.itemMeasure').text().trim()).toBe('10');
                     done();
                 }, DefaultWaitForRender);
             });
@@ -743,7 +756,7 @@ module powerbitests {
                 expect(legend.getMargins().height).toBe(defaultLegendHeight);
             });
 
-            it('legend dom validation incremental build', (done) => {    
+            it('legend dom validation incremental build', (done) => {
                 // Draw the legend once with the 3 states
                 let initialData: powerbi.visuals.LegendDataPoint[] = legendData;
 
@@ -783,11 +796,7 @@ module powerbitests {
             let rearrangedItems = [];
             let rearrangedIcons = [];
 
-            for (let i = 0; i < len; i = i + 2) {
-                rearrangedItems.push($(items.get(i)));
-                rearrangedIcons.push($(icons.get(i)));
-            }
-            for (let i = 1; i < len; i = i + 2) {
+            for (let i = 0; i < len; i++) {
                 rearrangedItems.push($(items.get(i)));
                 rearrangedIcons.push($(icons.get(i)));
             }
@@ -799,7 +808,9 @@ module powerbitests {
 
                 expect(item.find('.itemName').text()).toBe(expectedDatum.label);
                 expect(item.find('.itemMeasure').text().trim()).toBe(expectedDatum.measure.toString());
-                expect(icon.attr('style').trim()).toBe(jsCommon.StringExtensions.format(colorStyle, expectedDatum.color));
+
+                let color = icon.attr('style').substring(icon.attr('style').indexOf('color:')).trim();
+                expect(color).toBe(jsCommon.StringExtensions.format(colorStyle, expectedDatum.color));
             }
         }
     });

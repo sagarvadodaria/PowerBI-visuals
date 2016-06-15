@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Power BI Visualizations
  *
  *  Copyright (c) Microsoft Corporation
@@ -24,11 +24,12 @@
  *  THE SOFTWARE.
  */
 
-
+/// <reference path="../_references.ts"/>
 
 module powerbitests {
+    import DOMConstants = jsCommon.DOMConstants;
     import Textbox = powerbi.visuals.Textbox;
-    import richTextboxCapabilities = powerbi.visuals.textboxCapabilities;
+    import textboxCapabilities = powerbi.visuals.textboxCapabilities;
     import RichText = powerbi.visuals.RichText;
     import IVisualHostServices = powerbi.IVisualHostServices;
     import Paragraph = powerbi.Paragraph;
@@ -42,14 +43,18 @@ module powerbitests {
 
         describe("capabilities", () => {
             it("should suppress title", () => {
-                expect(richTextboxCapabilities.suppressDefaultTitle).toBeTruthy();
+                expect(textboxCapabilities.suppressDefaultTitle).toBe(true);
             });
 
             it("should register capabilities", () => {
                 let plugin = powerbi.visuals.visualPluginFactory.create().getPlugin("textbox");
 
                 expect(plugin).toBeDefined();
-                expect(plugin.capabilities).toBe(richTextboxCapabilities);
+                expect(plugin.capabilities).toBe(textboxCapabilities);
+            });
+
+            it("should not support format painter copy", () => {
+                expect(textboxCapabilities.objects.general.properties["paragraphs"].suppressFormatPainterCopy).toBe(true);
             });
         });
 
@@ -324,60 +329,6 @@ module powerbitests {
                     switchToViewMode(powerbi.ViewMode.View);
 
                     expect(changes).toHaveLength(1);
-
-                    let change = changes[0];
-                    expect(change.objectName).toEqual("general");
-
-                    let paragraphs: Paragraph[] = (<any>change.properties).paragraphs;
-                    expect(paragraphs.length).toBe(2);
-                    expect(paragraphs[0].horizontalTextAlignment).toBeFalsy();
-                    expect(paragraphs[0].textRuns.length).toBe(3);
-
-                    expect(paragraphs[0].textRuns[0].value).toBe("foo");
-                    expect(paragraphs[0].textRuns[0].textStyle).toEqual({ fontWeight: "bold" });
-                    expect(paragraphs[0].textRuns[0].url).toBeFalsy();
-
-                    expect(paragraphs[0].textRuns[1].value).toBe("bar");
-                    expect(paragraphs[0].textRuns[1].textStyle).toEqual({ fontStyle: "italic" });
-                    expect(paragraphs[0].textRuns[1].url).toBeFalsy();
-
-                    expect(paragraphs[0].textRuns[2].value).toBe("baz");
-                    expect(paragraphs[0].textRuns[2].textStyle).toEqual({ textDecoration: "underline" });
-                    expect(paragraphs[0].textRuns[2].url).toBeFalsy();
-
-                    expect(paragraphs[1].horizontalTextAlignment).toEqual("center");
-                    expect(paragraphs[1].textRuns[0].value).toBe("Power BI");
-                    expect(paragraphs[1].textRuns[0].textStyle).toEqual({});
-                    expect(paragraphs[1].textRuns[0].url).toEqual("http://www.powerbi.com");
-                });
-
-                it("font names should be saved without quotes", () => {
-                    let changes: powerbi.VisualObjectInstance[] = [];
-                    spyOn(host, "persistProperties").and.callFake((c) => changes = c);
-
-                    textbox.onDataChanged({
-                        dataViews: buildParagraphsDataView([
-                            {
-                                textRuns: [
-                                    { value: "foo", textStyle: { fontFamily: "'Comic Sans'" } },
-                                ]
-                            }
-                        ])
-                    });
-
-                    switchToViewMode(powerbi.ViewMode.View);
-
-                    expect(changes).toHaveLength(1);
-
-                    let change = changes[0];
-                    expect(change.objectName).toEqual("general");
-
-                    let paragraphs: Paragraph[] = (<any>change.properties).paragraphs;
-                    expect(paragraphs.length).toBe(1);
-                    expect(paragraphs[0].textRuns.length).toBe(1);
-
-                    expect(paragraphs[0].textRuns[0].value).toBe("foo");
-                    expect(paragraphs[0].textRuns[0].textStyle).toEqual({ fontFamily: "Comic Sans" });  // No quotes
                 });
 
                 it("change to view-mode should preserve empty lines", () => {
@@ -428,7 +379,14 @@ module powerbitests {
 
                     // verify that prevented keys do not bubble.
                     keydown = false;
-                    for (let key of powerbi.visuals.RichText.QuillWrapper.preventDefaultKeys) {
+
+                    let keys: number[] = [
+                        DOMConstants.aKeyCode,
+                        DOMConstants.cKeyCode,
+                        DOMConstants.xKeyCode,
+                        DOMConstants.vKeyCode
+                    ];
+                    for (let key of keys) {
                         let event = $.Event("keydown");
                         event.ctrlKey = true;
                         event.which = key;
@@ -436,6 +394,34 @@ module powerbitests {
                         $editor.trigger(event);
 
                         expect(keydown).toBeFalsy();
+                    }
+                });
+
+                it("arrow keys and shift are prevented from bubbling", () => {
+                    let $editor = getEditor($element);
+
+                    let keydown = false;
+                    $element.on("keydown", () => {
+                        keydown = true;
+                    });
+
+                    // verify that prevented keys do not bubble.
+                    keydown = false;
+                    let arrowKeys = [
+                        DOMConstants.upArrowKeyCode,
+                        DOMConstants.downArrowKeyCode,
+                        DOMConstants.rightArrowKeyCode,
+                        DOMConstants.leftArrowKeyCode,
+                        DOMConstants.shiftKeyCode
+                    ];
+
+                    for (let key of arrowKeys) {
+                        let event = $.Event("keydown");
+                        event.which = key;
+
+                        $editor.trigger(event);
+
+                        expect(keydown).toBe(false);
                     }
                 });
 
@@ -494,6 +480,98 @@ module powerbitests {
                         expect(getUrl($urlRun)).toBeUndefined();
                     });
                 });
+            });
+
+            describe('saving paragraphs', () => {
+                beforeEach(() => {
+                    // We save contents by starting in Edit mode and switching to View mode
+                    getViewModeSpy.and.returnValue(powerbi.ViewMode.Edit);
+
+                    textbox = new Textbox();
+                    textbox.init(initOptions);
+                });
+
+                it("change to view-mode should save content", () => {
+                    let changes = saveContents(paragraphs2);
+
+                    expect(changes).toHaveLength(1);
+
+                    let change = changes[0];
+                    expect(change.objectName).toEqual("general");
+
+                    let paragraphs: Paragraph[] = (<any>change.properties).paragraphs;
+                    expect(paragraphs.length).toBe(2);
+                    expect(paragraphs[0].horizontalTextAlignment).toBeFalsy();
+                    expect(paragraphs[0].textRuns.length).toBe(3);
+
+                    expect(paragraphs[0].textRuns[0].value).toBe("foo");
+                    expect(paragraphs[0].textRuns[0].textStyle).toEqual({ fontWeight: "bold" });
+                    expect(paragraphs[0].textRuns[0].url).toBeFalsy();
+
+                    expect(paragraphs[0].textRuns[1].value).toBe("bar");
+                    expect(paragraphs[0].textRuns[1].textStyle).toEqual({ fontStyle: "italic" });
+                    expect(paragraphs[0].textRuns[1].url).toBeFalsy();
+
+                    expect(paragraphs[0].textRuns[2].value).toBe("baz");
+                    expect(paragraphs[0].textRuns[2].textStyle).toEqual({ textDecoration: "underline" });
+                    expect(paragraphs[0].textRuns[2].url).toBeFalsy();
+
+                    expect(paragraphs[1].horizontalTextAlignment).toEqual("center");
+                    expect(paragraphs[1].textRuns[0].value).toBe("Power BI");
+                    expect(paragraphs[1].textRuns[0].textStyle).toEqual({});
+                    expect(paragraphs[1].textRuns[0].url).toEqual("http://www.powerbi.com");
+                });
+
+                it("font names should be saved without quotes", () => {
+                    let changes = saveContents([{
+                        textRuns: [
+                            { value: "foo", textStyle: { fontFamily: "'Comic Sans'" } },
+                        ]
+                    }]);
+
+                    expect(changes).toHaveLength(1);
+
+                    let change = changes[0];
+                    expect(change.objectName).toEqual("general");
+
+                    let paragraphs: Paragraph[] = (<any>change.properties).paragraphs;
+                    expect(paragraphs.length).toBe(1);
+                    expect(paragraphs[0].textRuns.length).toBe(1);
+
+                    expect(paragraphs[0].textRuns[0].value).toBe("foo");
+                    expect(paragraphs[0].textRuns[0].textStyle).toEqual({ fontFamily: "Comic Sans" });  // No quotes
+                });
+
+                it("built-in font names should be translated", () => {
+                    let changes = saveContents([{
+                        textRuns: [
+                            { value: "foo", textStyle: { fontFamily: "wf_segoe-ui_normal" } },
+                        ]
+                    }]);
+
+                    expect(changes).toHaveLength(1);
+
+                    let change = changes[0];
+                    expect(change.objectName).toEqual("general");
+
+                    let paragraphs: Paragraph[] = (<any>change.properties).paragraphs;
+                    expect(paragraphs.length).toBe(1);
+                    expect(paragraphs[0].textRuns.length).toBe(1);
+                    expect(paragraphs[0].textRuns[0].textStyle).toEqual({ fontFamily: "Segoe UI" });
+                });
+
+                function saveContents(paragraphs: Paragraph[]): powerbi.VisualObjectInstance[] {
+                    textbox.onDataChanged({ dataViews: buildParagraphsDataView(paragraphs) });
+
+                    let changes: powerbi.VisualObjectInstance[];
+                    let persistPropertiesSpy = spyOn(host, "persistProperties");
+                    persistPropertiesSpy.and.callFake((c) => changes = c);
+
+                    switchToViewMode(powerbi.ViewMode.View);
+                    expect(persistPropertiesSpy).toHaveBeenCalled();
+
+                    return changes;
+                }
             });
 
             describe("toolbar", () => {
@@ -615,6 +693,17 @@ module powerbitests {
                             expect(anchors.length).toBe(1);
                             expect(anchors.eq(0).attr("href")).toBe(microsoft);
                             expect(anchors.eq(0).html()).toBe(microsoft);
+                        });
+
+                        it('inserting link should save', () => {
+                            let microsoft = 'http://www.microsoft.com';
+                            linkInput.val(microsoft);
+
+                            let persistPropertiesSpy = spyOn(host, "persistProperties");
+
+                            done.mousedown();
+
+                            expect(persistPropertiesSpy).toHaveBeenCalled();
                         });
 
                         it('enter key should insert input value into editor', () => {
@@ -802,7 +891,7 @@ module powerbitests {
                         let fontFace = "Symbol";
 
                         beforeEach(() => {
-                            setSelectValue(fontSelect(getToolbar()), "'" + fontFace + "'" );
+                            setSelectValue(fontSelect(getToolbar()), fontFace);
                         });
 
                         it("should change font in editor", () => {
@@ -834,7 +923,7 @@ module powerbitests {
                         let fontFace = "wf_segoe-ui_normal";
 
                         beforeEach(() => {
-                            setSelectValue(fontSelect(getToolbar()), "'" + fontFace + "'");
+                            setSelectValue(fontSelect(getToolbar()), fontFace);
                         });
 
                         it("should change font in editor", () => {
@@ -1081,14 +1170,9 @@ module powerbitests {
 
             describe('RichText module', () => {
                 describe('getFontFamily', () => {
-                    it('quotes font name', () => {
-                        expect(RichText.getFontFamily('foo bar')).toEqual("'foo bar'");
-                        expect(RichText.getFontFamily("'foo bar'")).toEqual("'foo bar'");
-                    });
-
                     it('uses font map if possible', () => {
-                        expect(RichText.getFontFamily('Body')).toEqual("'wf_segoe-ui_normal'");
-                        expect(RichText.getFontFamily('Arial')).toEqual("'Arial'");  // Not in font map
+                        expect(RichText.getCssFontFamily('Body')).toEqual("wf_segoe-ui_normal");
+                        expect(RichText.getCssFontFamily('Arial')).toEqual("Arial");  // Not in font map
                     });
                 });
             });
@@ -1103,11 +1187,13 @@ module powerbitests {
             }
 
             function verifyEditor($element: JQuery, present: boolean): void {
-                expect($element).toHaveClass("richtextbox");
-
                 if (present) {
                     let $container = $element.children("div").eq(0);
                     expect($container).toBeDefined();
+                    
+                    // Note: If this class is changed, the corresponding focus handler must be updated
+                    // for PowerBI Desktop in its branch (DataExplorer)
+                    expect($container).toHaveClass("textbox");
 
                     expect(setToolbarSpy).toHaveBeenCalled();
                     expect($toolbar).toBeDefined();

@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Power BI Visualizations
  *
  *  Copyright (c) Microsoft Corporation
@@ -27,61 +27,23 @@
 /// <reference path="../_references.ts"/>
 
 module powerbi.data {
+    import ArrayExtensions = jsCommon.ArrayExtensions;
+    import ArrayNamedItems = jsCommon.ArrayNamedItems;
+    import ConceptualEntity = powerbi.data.ConceptualEntity;
+    import ConceptualMultiplicity = powerbi.data.ConceptualMultiplicity;
+    import SQEntityExpr = powerbi.data.SQEntityExpr;
     import StringExtensions = jsCommon.StringExtensions;
 
     export module SQExprUtils {
-        /** Returns an array of supported aggregates for a given expr and role. */
-        export function getSupportedAggregates(
-            expr: SQExpr,
-            schema: FederatedConceptualSchema): QueryAggregateFunction[] {
-            let emptyList: QueryAggregateFunction[] = [];
+        export function supportsArithmetic(expr: SQExpr, schema: FederatedConceptualSchema): boolean {
+            let metadata = expr.getMetadata(schema),
+                type = metadata && metadata.type;
 
-            let metadata = getMetadataForUnderlyingType(expr, schema);
-
-            // don't use expr.validate as validate will be using this function and we end up in a recursive loop
-            if (!metadata)
-                return emptyList;
-
-            let valueType = metadata.type,
-                fieldKind = metadata.kind,
-                isPropertyIdentity = metadata.idOnEntityKey,
-                Agg = QueryAggregateFunction; // alias
-
-            if (!valueType)
-                return emptyList;
-
-            // Cannot aggregate on model measures
-            if (fieldKind === FieldKind.Measure)
-                return emptyList;
-
-            if (valueType.numeric || valueType.integer) {
-                let aggregates = [Agg.Sum, Agg.Avg, Agg.Min, Agg.Max, Agg.Count, Agg.CountNonNull, Agg.StandardDeviation, Agg.Variance];
-                let fieldExpr = SQExprConverter.asFieldPattern(expr);
-                let fieldExprItem = FieldExprPattern.toFieldExprEntityItemPattern(fieldExpr);
-
-                let currentSchema = schema.schema(fieldExprItem.schema);
-                if (currentSchema.capabilities.supportsMedian)
-                    aggregates.push(Agg.Median);
-                return aggregates;
-            } else if (valueType.text || valueType.bool || valueType.dateTime) {
-                // The supported aggregation types for an identity field are restricted to 'Count Non-Null' (e.g. for the field well aggregation options)
-                // but a valid semantic query can return a less-restricted aggregation option which we should honor. (e.g. this results from Q&A)
-                let distinctCountAggExists = SQExprInfo.getAggregate(expr) === Agg.Count;
-                if (isPropertyIdentity && !distinctCountAggExists)
-                    return [Agg.CountNonNull];
-                return [Agg.Count, Agg.CountNonNull];
+            if (!metadata || !type) {
+                return false;
             }
-
-            debug.assertFail("Unexpected expr or role.");
-            return emptyList;
-        }
-
-        export function isSupportedAggregate(
-            expr: SQExpr,
-            schema: FederatedConceptualSchema,
-            aggregate: QueryAggregateFunction): boolean {
-            let supportedAggregates = getSupportedAggregates(expr, schema);
-            return _.contains(supportedAggregates, aggregate);
+            
+            return type.numeric || type.dateTime || type.duration;
         }
 
         export function indexOfExpr(items: SQExpr[], searchElement: SQExpr): number {
@@ -90,6 +52,18 @@ module powerbi.data {
 
             for (let i = 0, len = items.length; i < len; i++) {
                 if (SQExpr.equals(items[i], searchElement))
+                    return i;
+            }
+            return -1;
+        }
+        
+        export function indexOfNamedExpr(items: NamedSQExpr[], searchElement: SQExpr): number {
+            debug.assertValue(items, 'items');
+            debug.assertValue(searchElement, 'searchElement');
+
+            for (let i = 0, len = items.length; i < len; i++) {
+                let item = items[i];
+                if (item && SQExpr.equals(item.expr, searchElement))
                     return i;
             }
             return -1;
@@ -110,8 +84,8 @@ module powerbi.data {
 
             return true;
         }
-
-        export function uniqueName(namedItems: NamedSQExpr[], expr: SQExpr): string {
+        
+        export function uniqueName(namedItems: NamedSQExpr[], expr: SQExpr, exprDefaultName?: string): string {
             debug.assertValue(namedItems, 'namedItems');
 
             // Determine all names
@@ -119,7 +93,7 @@ module powerbi.data {
             for (let i = 0, len = namedItems.length; i < len; i++)
                 names[namedItems[i].name] = true;
 
-            return StringExtensions.findUniqueName(names, defaultName(expr));
+            return StringExtensions.findUniqueName(names, exprDefaultName || defaultName(expr));
         }
 
         /** Generates a default expression name  */
@@ -156,6 +130,15 @@ module powerbi.data {
             return capabilities && capabilities.discourageQueryAggregateUsage;
         }
 
+        export function getAggregateBehavior(expr: SQExpr, schema: FederatedConceptualSchema): ConceptualAggregateBehavior {
+            debug.assertValue(expr, 'expr');
+            debug.assertValue(schema, 'schema');
+
+            let column = getConceptualColumn(expr, schema);
+            if (column)
+                return column.aggregateBehavior;
+        }
+
         export function getSchemaCapabilities(expr: SQExpr, schema: FederatedConceptualSchema): ConceptualCapabilities {
             debug.assertValue(expr, 'expr');
             debug.assertValue(schema, 'schema');
@@ -180,6 +163,16 @@ module powerbi.data {
                 return kpiTrendProperty.kpiValue.measure.kpi.trendMetadata;
         }
 
+        export function getConceptualEntity(entityExpr: SQEntityExpr, schema: FederatedConceptualSchema): ConceptualEntity {
+            debug.assertValue(entityExpr, 'entityExpr');
+
+            let conceptualEntity = schema
+                .schema(entityExpr.schema)
+                .entities
+                .withName(entityExpr.entity);
+            return conceptualEntity;
+        }
+
         function getKpiStatusProperty(expr: SQExpr, schema: FederatedConceptualSchema): ConceptualProperty {
             let property = expr.getConceptualProperty(schema);
             if (!property)
@@ -200,17 +193,13 @@ module powerbi.data {
                 return property;
         }
 
-        function getMetadataForUnderlyingType(expr: SQExpr, schema: FederatedConceptualSchema): SQExprMetadata {
-            // Unwrap the aggregate (if the expr has one), and look at the underlying type.
-            let metadata = SQExprBuilder.removeAggregate(expr).getMetadata(schema);
-
-            if (!metadata)
-                metadata = expr.getMetadata(schema);
-
-            return metadata;
+        export function getDefaultValue(fieldSQExpr: SQExpr, schema: FederatedConceptualSchema): SQConstantExpr {
+            let column = getConceptualColumn(fieldSQExpr, schema);
+            if (column)
+                return column.defaultValue;
         }
 
-        export function getDefaultValue(fieldSQExpr: SQExpr, schema: FederatedConceptualSchema): SQConstantExpr {
+        function getConceptualColumn(fieldSQExpr: SQExpr, schema: FederatedConceptualSchema): ConceptualColumn {
             if (!fieldSQExpr || !schema)
                 return;
 
@@ -224,8 +213,8 @@ module powerbi.data {
                 if (schema.schema(column.schema) && sqField.column.name) {
                     let property = schema.schema(column.schema).findProperty(column.entity, sqField.column.name);
 
-                    if (property && property.column)
-                        return property.column.defaultValue;
+                    if (property)
+                        return property.column;
                 }
             }
             else {
@@ -239,8 +228,8 @@ module powerbi.data {
 
                         if (hierarchy) {
                             let hierarchyLevel: ConceptualHierarchyLevel = hierarchy.levels.withName(hierarchyLevelField.level);
-                            if (hierarchyLevel && hierarchyLevel.column && hierarchyLevel.column.column)
-                                return hierarchyLevel.column.column.defaultValue;
+                            if (hierarchyLevel && hierarchyLevel.column)
+                                return hierarchyLevel.column.column;
                         }
                     }
                 }
@@ -294,6 +283,121 @@ module powerbi.data {
             return tables;
         }
 
+        export function isRelatedToMany(
+            schema: FederatedConceptualSchema,
+            sourceExpr: SQEntityExpr,
+            targetExpr: SQEntityExpr): boolean {
+
+            return isRelated(schema, sourceExpr, targetExpr, ConceptualMultiplicity.ZeroOrOne, ConceptualMultiplicity.Many) ||
+                isRelated(schema, targetExpr, sourceExpr, ConceptualMultiplicity.Many, ConceptualMultiplicity.ZeroOrOne);
+        }
+
+        export function isRelatedToOne(
+            schema: FederatedConceptualSchema,
+            sourceExpr: SQEntityExpr,
+            targetExpr: SQEntityExpr): boolean {
+
+            return isRelated(schema, sourceExpr, targetExpr, ConceptualMultiplicity.Many, ConceptualMultiplicity.ZeroOrOne) ||
+                isRelated(schema, targetExpr, sourceExpr, ConceptualMultiplicity.ZeroOrOne, ConceptualMultiplicity.Many);
+        }
+
+        function isRelated(
+            schema: FederatedConceptualSchema,
+            sourceExpr: SQEntityExpr,
+            targetExpr: SQEntityExpr,
+            sourceMultiplicity: ConceptualMultiplicity,
+            targetMultiplicity: ConceptualMultiplicity): boolean {
+
+            let source = SQExprUtils.getConceptualEntity(sourceExpr, schema);
+            debug.assertValue(source, "could not resolve conceptual entity form sourceExpr.");
+
+            if (_.isEmpty(source.navigationProperties))
+                return false;
+
+            let target = SQExprUtils.getConceptualEntity(targetExpr, schema);
+            debug.assertValue(target, "could not resolve conceptual entity form targetExpr.");
+
+            let queue: ConceptualEntity[] = [];
+            queue.push(source);
+
+            // walk the relationship path from source.
+            while (!_.isEmpty(queue)) {
+                let current = queue.shift();
+
+                let navProperties = current.navigationProperties;
+                if (_.isEmpty(navProperties))
+                    continue;
+
+                for (let navProperty of navProperties) {
+                    if (!navProperty.isActive)
+                        continue;
+
+                    if (navProperty.targetMultiplicity === targetMultiplicity && navProperty.sourceMultiplicity === sourceMultiplicity) {
+                        if (navProperty.targetEntity === target)
+                            return true;
+                        queue.push(navProperty.targetEntity);
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        export function isRelatedOneToOne(
+            schema: FederatedConceptualSchema,
+            sourceExpr: SQEntityExpr,
+            targetExpr: SQEntityExpr): boolean {
+
+            let source = SQExprUtils.getConceptualEntity(sourceExpr, schema);
+            debug.assertValue(source, "could not resolve conceptual entity form sourceExpr.");
+            let target = SQExprUtils.getConceptualEntity(targetExpr, schema);
+            debug.assertValue(target, "could not resolve conceptual entity form targetExpr.");
+
+            let sourceNavigations = source.navigationProperties;
+            let targetNavigations = target.navigationProperties;
+
+            if (_.isEmpty(sourceNavigations) && _.isEmpty(targetNavigations))
+                return false;
+
+            return hasOneToOneNavigation(sourceNavigations, target) || hasOneToOneNavigation(targetNavigations, source);
+        }
+
+        function hasOneToOneNavigation(navigationProperties: ArrayNamedItems<ConceptualNavigationProperty>, targetEntity: ConceptualEntity): boolean {
+            if (_.isEmpty(navigationProperties))
+                return false;
+
+            for (let navigationProperty of navigationProperties) {
+                if (!navigationProperty.isActive)
+                    continue;
+
+                if (navigationProperty.targetEntity !== targetEntity)
+                    continue;
+
+                if (navigationProperty.sourceMultiplicity === ConceptualMultiplicity.ZeroOrOne &&
+                    navigationProperty.targetMultiplicity === ConceptualMultiplicity.ZeroOrOne) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /** Performs a union of the 2 arrays with SQExpr.equals as comparator to skip duplicate items,
+            and returns a new array. When available, we should use _.unionWith from lodash. */
+        export function concatUnique(leftExprs: SQExpr[], rightExprs: SQExpr[]): SQExpr[] {
+            debug.assertValue(leftExprs, 'leftExprs');
+            debug.assertValue(rightExprs, 'rightExprs');
+
+            let concatExprs = ArrayExtensions.copy(leftExprs);
+            for (let expr of rightExprs) {
+                if (indexOfExpr(concatExprs, expr) === -1) {
+                    concatExprs.push(expr);
+                }
+            }
+
+            return concatExprs;
+        }
+
         class SQExprDefaultNameGenerator extends DefaultSQExprVisitorWithArg<string, string> {
             public static instance: SQExprDefaultNameGenerator = new SQExprDefaultNameGenerator();
 
@@ -313,6 +417,18 @@ module powerbi.data {
                 return QueryAggregateFunction[expr.func] + '(' + expr.arg.accept(this) + ')';
             }
 
+            public visitPercentile(expr: SQPercentileExpr, fallback: string): string {
+                let func = expr.exclusive
+                    ? 'Percentile.Exc('
+                    : 'Percentile.Inc(';
+
+                return func + expr.arg.accept(this) + ', ' + expr.k + ')';
+            }
+
+            public visitArithmetic(expr: SQArithmeticExpr, fallback: string): string {
+                return powerbi.data.getArithmeticOperatorName(expr.operator) + '(' + expr.left.accept(this) + ', ' + expr.right.accept(this) + ')';
+            }
+
             public visitConstant(expr: SQConstantExpr): string {
                 return 'const';
             }
@@ -330,6 +446,10 @@ module powerbi.data {
             }
 
             public visitAggr(expr: SQAggregationExpr): boolean {
+                return true;
+            }
+
+            public visitArithmetic(expr: SQArithmeticExpr): boolean {
                 return true;
             }
 

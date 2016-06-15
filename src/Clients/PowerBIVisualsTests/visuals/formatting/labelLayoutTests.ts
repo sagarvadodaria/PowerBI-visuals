@@ -24,7 +24,7 @@
  *  THE SOFTWARE.
  */
 
-
+/// <reference path="../../_references.ts"/>
 
 module powerbitests {
     import LabelArrangeGrid = powerbi.LabelArrangeGrid;
@@ -122,8 +122,8 @@ module powerbitests {
             labelLayout = new LabelLayout({
                 startingOffset: 5,
                 maximumOffset: 20,
-                labelPadding: 2,
-                labelOffsetIterationDelta: 2,
+                horizontalPadding:2,
+                verticalPadding:2
             });
         });
 

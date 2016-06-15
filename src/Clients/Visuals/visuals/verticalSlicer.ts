@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Power BI Visualizations
  *
  *  Copyright (c) Microsoft Corporation
@@ -119,6 +119,9 @@ module powerbi.visuals {
                 scrollEnabled: true,
                 viewport: domHelper.getSlicerBodyViewport(this.currentViewport, settings, this.textProperties),
                 baseContainer: this.body,
+                isReadMode: () => {
+                    return (this.hostServices.getViewMode() !== ViewMode.Edit);
+                }
             };
 
             this.listView = ListViewFactory.createListView(listViewOptions);
@@ -184,11 +187,13 @@ module powerbi.visuals {
                     item.append('span')
                         .classed(SlicerUtil.Selectors.LabelText.class, true);
                 }
-            });
 
-            listItemElement.append('span')
-                .classed(SlicerUtil.Selectors.CountText.class, true)
-                .style('font-size', PixelConverter.fromPoint(settings.slicerText.textSize));
+                if (d.count != null) {
+                    item.append('span')
+                        .classed(SlicerUtil.Selectors.CountText.class, true)
+                        .style('font-size', PixelConverter.fromPoint(settings.slicerText.textSize));
+                }
+            });
         }
 
         private onUpdateSelection(rowSelection: D3.Selection, interactivityService: IInteractivityService): void {
@@ -209,13 +214,17 @@ module powerbi.visuals {
                 domHelper.setSlicerTextStyle(labelText, settings);
 
                 let labelImage = rowSelection.selectAll(SlicerUtil.Selectors.LabelImage.selector);
-                labelImage.attr('src', (d: SlicerDataPoint) => {
+                if (!labelImage.empty()) {
+                    labelImage.attr('src', (d: SlicerDataPoint) => {
                         return d.value;
-                });
+                    });
+                }
 
                 let countText = rowSelection.selectAll(SlicerUtil.Selectors.CountText.selector);
-                countText.text((d: SlicerDataPoint) =>  d.count);
-                domHelper.setSlicerTextStyle(countText, settings);
+                if (!countText.empty()) {
+                    countText.text((d: SlicerDataPoint) => d.count);
+                    domHelper.setSlicerTextStyle(countText, settings);
+                }
 
                 if (interactivityService && this.body) {
                     let body = this.body.attr('width', this.currentViewport.width);
@@ -223,7 +232,7 @@ module powerbi.visuals {
                     let slicerItemLabels = body.selectAll(SlicerUtil.Selectors.LabelText.selector);
                     let slicerItemInputs = body.selectAll(Selectors.Input.selector);
                     let slicerClear = this.header.select(SlicerUtil.Selectors.Clear.selector);
-
+                    let searchInput = this.header.select('input');
                     let behaviorOptions: VerticalSlicerBehaviorOptions = {
                         dataPoints: data.slicerDataPoints,
                         slicerContainer: this.container,
@@ -233,6 +242,7 @@ module powerbi.visuals {
                         clear: slicerClear,
                         interactivityService: interactivityService,
                         settings: data.slicerSettings,
+                        searchInput: searchInput,
                     };
 
                     let orientationBehaviorOptions: SlicerOrientationBehaviorOptions = {

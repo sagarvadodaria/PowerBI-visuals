@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Power BI Visualizations
  *
  *  Copyright (c) Microsoft Corporation
@@ -348,7 +348,7 @@ module powerbi {
                     }
                     else {
                         text = formattedDataLabel;
-                        labelPoint.secondRowText = formattedCategoryLabel;
+                        labelPoint.secondRowText = formattedCategoryLabel;                
                     }
                     break;
                 case labelStyle.data:
@@ -365,6 +365,7 @@ module powerbi {
             return {
                 boundingBox: boundingBox,
                 text: text,
+                tooltip: labelPoint.tooltip,
                 isVisible: true,
                 fill: labelPoint.outsideFill,
                 identity: labelPoint.identity,

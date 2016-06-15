@@ -183,6 +183,8 @@ module powerbi.visuals.controls.internal {
 
             let delta = TablixResizer.getMouseCoordinateDelta(this._startMousePosition, TablixResizer.getMouseCoordinates(event));
             this._handler.onResize(this.cell, delta.x, delta.y);
+            // Need to prevent default to prevent mouse move from triggering other effects (VSTS 6720639)
+            event.preventDefault();
         }
 
         private onDocumentMouseUp(event: MouseEvent): void {
@@ -211,8 +213,8 @@ module powerbi.visuals.controls.internal {
     export class TablixDomResizer extends TablixResizer {
         private _cell: TablixCell;
         constructor(cell: TablixCell, element: HTMLElement, handler: ITablixResizeHandler) {
-            this._cell = cell;
             super(element, handler);
+            this._cell = cell;
         }
 
         public get cell(): TablixCell {
@@ -226,20 +228,20 @@ module powerbi.visuals.controls.internal {
     }
 
     export class TablixCellPresenter {
-        static _noMarginsStyle: HTMLStyleElement;
-        static _noMarginsStyleName = "bi-tablix-cellNoMarginStyle";
         // Attribute used to disable dragging in order to have cell resizing work.
         static _dragResizeDisabledAttributeName = "drag-resize-disabled";
 
         private _owner: TablixCell;
 
         private _tableCell: HTMLTableCellElement;
+        /** Outer DIV */
         private _contentElement: HTMLDivElement;
+        /** Inner DIV */
         private _contentHost: HTMLDivElement;
 
-        private _contentHostStyle: string;
-        private _containerStyle: string;
         private _resizer: TablixResizer;
+
+        public layoutKind: TablixLayoutKind;
 
         constructor(fitProportionally: boolean, layoutKind: TablixLayoutKind) {
             // Table cell will be created once needed
@@ -247,26 +249,15 @@ module powerbi.visuals.controls.internal {
 
             // Content element
             this._contentElement = TablixUtils.createDiv();
-            this._contentElement.style.position = "relative";
-            if (!fitProportionally)
-                this._contentElement.style.setProperty("float", "left");
 
             // Content Host
             this._contentHost = TablixUtils.createDiv();
-            this._contentHost.style.position = "relative";
 
-            this._contentHost.style.textOverflow = "ellipsis";
-            // TODO: this styling should not happen in the cell presenter; refactor to binder or layout manager
-            if (layoutKind === TablixLayoutKind.DashboardTile) {
-                // With the current styling bold numbers are cut off at the right; adding a small padding
-                this._contentHost.style.paddingRight = "2px";
-                this._contentHost.style.height = "100%";
-            }
+            this.layoutKind = layoutKind;
 
             this._contentElement.appendChild(this._contentHost);
 
             this._resizer = null;
-            TablixCellPresenter.addNoMarginStyle();
         }
 
         public initialize(owner: TablixCell) {
@@ -281,21 +272,22 @@ module powerbi.visuals.controls.internal {
             this._tableCell = tableCell;
 
             tableCell.appendChild(this._contentElement);
-            tableCell.className = TablixCellPresenter._noMarginsStyleName;
-
-            // TODO: Push to CSS
-            tableCell.style.verticalAlign = "top";
-            tableCell.style.lineHeight = "normal";
         }
 
         public get tableCell(): HTMLTableCellElement {
             return this._tableCell;
         }
 
+        /**
+         * Outer DIV
+         */
         public get contentElement(): HTMLElement {
             return this._contentElement;
         }
 
+        /**
+        * Inner DIV
+        */
         public get contentHost(): HTMLElement {
             return this._contentHost;
         }
@@ -308,11 +300,11 @@ module powerbi.visuals.controls.internal {
             this._contentElement.onclick = null;
         }
 
-        public onContentWidthChanged(value: number): void {
+        public onContainerWidthChanged(value: number): void {
             HTMLElementUtils.setElementWidth(this._contentElement, value);
         }
 
-        public onContentHeightChanged(height: number): void {
+        public onContinerHeightChanged(height: number): void {
             HTMLElementUtils.setElementHeight(this._contentElement, height);
         }
 
@@ -328,37 +320,9 @@ module powerbi.visuals.controls.internal {
             this._tableCell.style.textAlign = value;
         }
 
-        public setColumnSeparator(separatorColor: string, separatorWeight: number): void {
-            this._tableCell.style.borderLeft = separatorWeight + TablixUtils.UnitOfMeasurement + " " + TablixUtils.DefaultColumnSeparatorStyle + " " + separatorColor;
-        }
-
-        public setFontColor(fontColor: string): void {
-            this._tableCell.style.color = fontColor;
-        }
-
-        public setBackgroundColor(backgroundColor: string): void {
-            this._tableCell.style.backgroundColor = backgroundColor;
-        }
-
-        public setRowSeparator(): void {
-            this._tableCell.style.borderBottom = TablixUtils.DefaultRowSeparatorWeight + TablixUtils.UnitOfMeasurement + " " + TablixUtils.DefaultRowSeparatorStyle + " " + TablixUtils.DefaultRowSeparatorColor;
-        }
-
-        public setOutline(borderStyle, borderColor, borderWeight): void {
-            this._tableCell.style.borderStyle = borderStyle;
-            this._tableCell.style.borderColor = borderColor;
-            this._tableCell.style.borderWidth = borderWeight;
-        }
-
-        public setLeadingSpace(leadingSpaces: number): void {
-            this._tableCell.style.paddingTop = leadingSpaces + TablixUtils.UnitOfMeasurement;
-        }
-
         public onClear(): void {
             this._contentHost.className = "";
-            this._contentHostStyle = "";
-            this._tableCell.className = TablixCellPresenter._noMarginsStyleName;
-            this._containerStyle = "";
+            this._tableCell.className = "";
         }
 
         public onHorizontalScroll(width: number, offset: number): void {
@@ -378,42 +342,6 @@ module powerbi.visuals.controls.internal {
             HTMLElementUtils.setElementHeight(this._contentHost, -1);
         }
 
-        public setContentHostStyle(style: string): void {
-            if (this._contentHostStyle !== style) {
-                this._contentHostStyle = style;
-                this._contentHost.className = this._contentHostStyle;
-            }
-        }
-
-        public setContainerStyle(style: string): void {
-            if (this._containerStyle !== style) {
-                this._containerStyle = style;
-                this._tableCell.className = this._containerStyle + " " + TablixCellPresenter._noMarginsStyleName;
-            }
-        }
-
-        public clearContainerStyle(): void {
-            this._containerStyle = undefined;
-            if (this._tableCell.className !== TablixCellPresenter._noMarginsStyleName)
-                this._tableCell.className = TablixCellPresenter._noMarginsStyleName;
-
-            //clear all the inline styling after unbinding the cells
-            this._tableCell.style.border = "";
-            this._tableCell.style.background = "";
-            this._tableCell.style.color = "";
-        }
-
-        public clearTextAndTooltip(): void {
-            this.contentHost.textContent = '';
-            this.contentHost.removeAttribute('title');
-        }
-
-        public setTextAndTooltip(text: string): void {
-            let val = TablixUtils.replaceSpaceWithNBSP(text);
-            this.contentHost.textContent = val;
-            this.contentHost.title = val;
-        }
-
         public enableHorizontalResize(enable: boolean, handler: ITablixResizeHandler): void {
             if (enable === (this._resizer !== null))
                 return;
@@ -427,15 +355,6 @@ module powerbi.visuals.controls.internal {
             }
         }
 
-        static addNoMarginStyle() {
-            if (!TablixCellPresenter._noMarginsStyle) {
-                let style: HTMLStyleElement = <HTMLStyleElement>document.createElement('style');
-                style.appendChild(document.createTextNode("." + TablixCellPresenter._noMarginsStyleName + "{ padding: 0px; margin: 0px}"));
-                document.head.appendChild(style);
-                TablixCellPresenter._noMarginsStyle = style;
-            }
-        }
-        
         /**
          * In order to allow dragging of the tableCell we need to
          * disable dragging of the container of the cell in IE.
@@ -530,26 +449,22 @@ module powerbi.visuals.controls.internal {
         }
 
         public getCellHeight(cell: ITablixCell): number {
-            return this._gridPresenter.sizeComputationManager.cellHeight;
+            return cell.containerHeight;
         }
 
         public getCellContentHeight(cell: ITablixCell): number {
-            return this._gridPresenter.sizeComputationManager.contentHeight;
+            return cell.contentHeight;
         }
 
     }
 
     export class CanvasRowPresenter extends TablixRowPresenter {
         public getCellHeight(cell: ITablixCell): number {
-            if (!(<TablixCell>cell)._presenter)
-                return 0;
-            return HTMLElementUtils.getElementHeight((<TablixCell>cell)._presenter.tableCell);
+            return cell.containerHeight;
         }
 
         public getCellContentHeight(cell: ITablixCell): number {
-            if (!(<TablixCell>cell)._presenter)
-                return 0;
-            return HTMLElementUtils.getElementHeight((<TablixCell>cell)._presenter.contentElement);
+            return cell.contentHeight;
         }
 
     }
@@ -626,7 +541,11 @@ module powerbi.visuals.controls.internal {
             if (!(<TablixCell>cell)._presenter)
                 return 0;
 
-            return HTMLElementUtils.getElementWidth((<TablixCell>cell)._presenter.contentElement) + 1; // Adding 1 because offsetWidth returns floored number, may risk getting ellipsis
+            let requiredWidth = HTMLElementUtils.getElementWidth((<TablixCell>cell)._presenter.contentElement);
+            if (requiredWidth > 0 && cell.colSpan === 1) // Doing this only for single-column-span cells
+                requiredWidth += 1; // Adding 1px because offsetWidth returns floored number, may risk getting ellipsis
+
+            return requiredWidth; 
         }
     }
 
@@ -747,14 +666,14 @@ module powerbi.visuals.controls.internal {
             }
         }
 
-        public invokeColumnResizeCallBack(columnIndex: number, width: number): void {
+        public invokeColumnResizeEndCallback(columnIndex: number, width: number): void {
             if (this._columnWidthManager)
-                this._columnWidthManager.columnWidthResizeCallback(columnIndex, width);
+                this._columnWidthManager.onColumnWidthChanged(columnIndex, width);
         }
 
         public getPersistedCellWidth(columnIndex: number): number {
             if (this._columnWidthManager)
-                return this._columnWidthManager.getPersistedCellWidth(columnIndex);
+                return this._columnWidthManager.getPersistedColumnWidth(columnIndex);
         }
     }
 

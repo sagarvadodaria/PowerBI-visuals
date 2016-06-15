@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Power BI Visualizations
  *
  *  Copyright (c) Microsoft Corporation
@@ -40,6 +40,7 @@ module powerbi.visuals {
             dataLabelDecimalPoints: 'dataLabelDecimalPoints',
             dataLabelHorizontalPosition: 'dataLabelHorizontalPosition',
             dataLabelVerticalPosition: 'dataLabelVerticalPosition',
+            dataLabelDisplayUnits: 'dataLabelDisplayUnits',
         };
 
         export function enumerateObjectInstances(enumeration: ObjectEnumerationBuilder, referenceLines: DataViewObjectMap, defaultColor: string, objectName: string): void {
@@ -104,11 +105,13 @@ module powerbi.visuals {
                     let dataLabelDecimalPoints = DataViewObject.getValue(referenceLineProperties, referenceLineProps.dataLabelDecimalPoints, undefined) < 0
                         ? undefined
                         : DataViewObject.getValue(referenceLineProperties, referenceLineProps.dataLabelDecimalPoints, undefined);
+                    let dataLabelDisplayUnits = DataViewObject.getValue(referenceLineProperties, referenceLineProps.dataLabelDisplayUnits, 0);
 
                     instance.properties[referenceLineProps.dataLabelColor] = dataLabelColor;
                     instance.properties[referenceLineProps.dataLabelHorizontalPosition] = dataLabelHorizontalPosition;
                     instance.properties[referenceLineProps.dataLabelVerticalPosition] = dataLabelVerticalPosition;
                     instance.properties[referenceLineProps.dataLabelDecimalPoints] = dataLabelDecimalPoints;
+                    instance.properties[referenceLineProps.dataLabelDisplayUnits] = dataLabelDisplayUnits;
                 }
 
                 enumeration.pushInstance(instance);
@@ -198,6 +201,7 @@ module powerbi.visuals {
             let decimalPoints: number = <number>(referenceLineProperties[referenceLineProps.dataLabelDecimalPoints] < 0 ? undefined : referenceLineProperties[referenceLineProps.dataLabelDecimalPoints]);
             let horizontalPosition = referenceLineProperties[referenceLineProps.dataLabelHorizontalPosition] || referenceLineDataLabelHorizontalPosition.left;
             let verticalPosition = referenceLineProperties[referenceLineProps.dataLabelVerticalPosition] || referenceLineDataLabelVerticalPosition.above;
+            let displayUnits = DataViewObject.getValue(referenceLineProperties, referenceLineProps.dataLabelDisplayUnits, 0);
 
             // Format the reference line data label text according to the matching axis formatter
             // When options is null default formatter is used either boolean, numeric, or text
@@ -207,6 +211,8 @@ module powerbi.visuals {
             if (axisFormatter.options != null) {
                 let formatterOptions = Prototype.inherit(axisFormatter.options);
                 formatterOptions.precision = decimalPoints;
+                formatterOptions.value = displayUnits;
+                formatterOptions.detectAxisPrecision = false;
                 formatterForReferenceLineDataLabel = valueFormatter.create(formatterOptions);
             }
 
@@ -234,7 +240,7 @@ module powerbi.visuals {
 
             if (isHorizontal) {
                 // Horizontal line. y1 = y2
-                dataLabelX = (horizontalPosition === referenceLineDataLabelHorizontalPosition.left) ? x1 + (rectWidth / 2) + offsetRefLine : x2 - (rectWidth / 2) - offsetRefLine;
+                dataLabelX = (horizontalPosition === referenceLineDataLabelHorizontalPosition.left) ? x1 + offsetRefLine : x2 - (rectWidth / 2) - offsetRefLine;
                 dataLabelY = y1;
                 validPositions = (verticalPosition === referenceLineDataLabelVerticalPosition.above) ? [NewPointLabelPosition.Above] : [NewPointLabelPosition.Below];
             }
@@ -274,6 +280,15 @@ module powerbi.visuals {
                 secondRowText: null,
                 key: options.key,
             };
+        }
+
+        export function extractReferenceLineValue(referenceLineProperties: DataViewObject): number {
+            let referenceLineValue: number = null;
+
+            if (referenceLineProperties && DataViewObject.getValue(referenceLineProperties, ReferenceLineHelper.referenceLineProps.show, false))
+                referenceLineValue = DataViewObject.getValue(referenceLineProperties, ReferenceLineHelper.referenceLineProps.value, null);
+
+            return referenceLineValue;
         }
     }
 }

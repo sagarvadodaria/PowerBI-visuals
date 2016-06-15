@@ -24,134 +24,108 @@
 *  THE SOFTWARE.
 */
 
-
+/// <reference path="../../_references.ts"/>
 
 module powerbitests.customVisuals.sampleDataViews {
-    import SQExprBuilder = powerbi.data.SQExprBuilder;
     import ValueType = powerbi.ValueType;
-    import DataViewMetadata = powerbi.DataViewMetadata;
-    import DataViewMatrix = powerbi.DataViewMatrix;
-    import data = powerbi.data;
-    import DataView = powerbi.DataView;
 
-    export class GanttData {
+    export class GanttData extends DataViewBuilder {
+        public static ColumnType: string = "Type";
+        public static ColumnTask: string = "Task";
+        public static ColumnStartDate: string = "StartDate";
+        public static ColumnDuration: string = "Duration";
+        public static ColumnResource: string = "Resource";
+        public static ColumnCompletePrecntege: string = "CompletePrecntege";
 
-        public getDataView(): DataView {
-            let titles = [
-                "Apply for Permits",
-                "Cabinets",
-                "Carpet, Tile and Appliances",
-                "Dry In",
-                "Drywall",
-                "Exterior Finishes",
-                "Final Acceptance",
-                "Finish Electrical",
-                "Finish HVAC",
-                "Finish Plumbing",
-                "Foundation",
-                "Framing",
-                "Insulation",
-                "Landscaping and Grounds Work",
-                "Paint (Interior)",
-                "Prepare Site",
-                "Utility Rough-Ins"];
+        public valuesTaskTypeResource: string[][] = [
+            ["Spec", "MOLAP connectivity", "Mey"],
+            ["Design", "Clickthrough", "John"],
+            ["Dev", "Tech design", "JohnV"],
+            ["Dev", "Front End dev", "Sheng"],
+            ["Dev", "Connection", "Gentiana"],
+            ["Dev", "Query Pipeline", "Just"],
+            ["Spec", "Gateway", "Darshan"],
+            ["Spec", "EGW", "Mini"],
+            ["Dev", "Development", "Shay"],
+            ["Dev", "Desktop", "Ehren"],
+            ["Dev", "Service Fixup", "James"],
+            ["Dev", "BugFixing", "Matt"],
+            ["Design", "Clickthrough", "John"],
+            ["Dev", "Tech design", "JohnV"],
+            ["Dev", "Front End dev", "Sheng"],
+            ["Dev", "Connection", "Gentiana"],
+            ["Dev", "Query Pipeline", "Just"],
+            ["Spec", "Gateway", "Darshan"],
+            ["Spec", "EGW", "Mini"],
+            ["Dev", "Development", "Shay"],
+            ["Dev", "Desktop", "Ehren"],
+            ["Dev", "Service Fixup", "James"],
+            ["Dev", "BugFixing", "Matt"],
+            ["Dev", "Connection", "Gentiana"],
+            ["Dev", "Query Pipeline", "Just"],
+            ["Spec", "Gateway", "Darshan"],
+            ["Spec", "EGW", "Mini"],
+            ["Dev", "Development", "Shay"],
+            ["Dev", "Desktop", "Ehren"],
+            ["Dev", "Service Fixup", "James"],
+            ["Dev", "BugFixing", "Last Name"],
+        ];
+        public valuesStartDate = helpers.getRandomUniqueDates(this.valuesTaskTypeResource.length, new Date(2015, 7, 0), new Date(2017, 7, 0));
+        public valuesDuration = helpers.getRandomUniqueNumbers(this.valuesTaskTypeResource.length, 3, 40);
+        public valuesCompletePrecntege = helpers.getRandomUniqueNumbers(this.valuesTaskTypeResource.length);
 
-            let dataViewMetadata: DataViewMetadata = {
-                columns: [
-                    {
-                        displayName: "Complete Percentage",
-                        queryName: "Sum(Gantt.Complete Percentage)",
-                        format: "0%",
-                        roles: { Completion: true },
-                        type: ValueType.fromDescriptor({ text: true })
+        public getDataView(columnNames?: string[]): powerbi.DataView {
+            return this.createCategoricalDataViewBuilder([
+                {
+                    source: {
+                        displayName: GanttData.ColumnType,
+                        type: ValueType.fromDescriptor({ text: true }),
+                        roles: { 'Type': true }
                     },
-                    {
-                        displayName: "Duration",
-                        queryName: "Sum(Gantt.Duration)",
-                        format: undefined,
-                        roles: { Duration: true },
-                        type: ValueType.fromDescriptor({ text: true })
-                    },
-                    {
-                        displayName: "Task",
-                        queryName: "Gantt.Task",
-                        format: undefined,
-                        roles: { Task: true },
-                        type: ValueType.fromDescriptor({ text: true })
-                    },
-                    {
-                        displayName: "Start Date",
-                        queryName: "Gantt.Start Date",
-                        format: undefined,
-                        roles: { StartDate: true },
-                        type: ValueType.fromDescriptor({ text: true })
-                    },
-                    {
-                        displayName: "Resource",
-                        queryName: "Gantt.Resource",
-                        format: undefined,
-                        roles: { Resource: true },
-                        type: ValueType.fromDescriptor({ text: true })
-                    }
-                ]
-            };
-
-            let rowGroupColumn = SQExprBuilder.fieldExpr({ column: { schema: undefined, entity: "ProjectSample-v011", name: "Task" } });
-
-            let matrixChilds = [];
-            for (var key in titles) {
-                //Create a matrix->rows->root child object
-                let matrixChildren = {
-                    value: titles[key],
-                    identity: data.createDataViewScopeIdentity(SQExprBuilder.equal(rowGroupColumn, SQExprBuilder.text(titles[key]))),
-                    children: [
-                        {
-                            value: new Date(2015, 0, 1),
-                            values: [
-                                {
-                                    //random value between 1 and 28
-                                    value: Math.floor(Math.random() * 28) + 1
-                                },
-                                {
-                                    //random value between 1 and 100
-                                    value: Math.floor(Math.random() * 100) + 1
-                                }
-                            ]
-                        }
-                    ]
-                };
-                matrixChilds.push(matrixChildren);
-            }
-
-            let matrixColumns: DataViewMatrix = {
-                rows: {
-                    root: {
-                        children: matrixChilds,
-                    },
-                    levels: [
-                        { sources: [dataViewMetadata.columns[2]] },
-                        { sources: [dataViewMetadata.columns[3]] },
-                        { sources: [dataViewMetadata.columns[4]] }
-                    ]
+                    values: this.valuesTaskTypeResource.map(x => x[0])
                 },
-                columns: {
-                    root: {
-                        children: [
-                            { level: 0 },
-                            { level: 0, levelSourceIndex: 1 }
-                        ]
+                {
+                    source: {
+                        displayName: GanttData.ColumnTask,
+                        type: ValueType.fromDescriptor({ text: true }),
+                        roles: { 'Task': true }
                     },
-                    levels: [
-                        { sources: [dataViewMetadata.columns[1], dataViewMetadata.columns[0]] }
-                    ]
+                    values: this.valuesTaskTypeResource.map(x => x[1])
                 },
-                valueSources: [dataViewMetadata.columns[1], dataViewMetadata.columns[0]]
-            };
-
-            return {
-                metadata: dataViewMetadata,
-                matrix: matrixColumns
-            };
+                {
+                    source: {
+                        displayName: GanttData.ColumnResource,
+                        type: ValueType.fromDescriptor({ text: true }),
+                        roles: { 'Resource': true }
+                    },
+                    values: this.valuesTaskTypeResource.map(x => x[2])
+                }
+                ],[
+                {
+                    source: {
+                        displayName: GanttData.ColumnStartDate,
+                        type: ValueType.fromDescriptor({ dateTime: true }),
+                        roles: { 'StartDate': true }
+                    },
+                    values: this.valuesStartDate
+                },
+                {
+                    source: {
+                        displayName: GanttData.ColumnDuration,
+                        type: ValueType.fromDescriptor({ numeric: true }),
+                        roles: { 'Duration': true }
+                    },
+                    values: this.valuesDuration
+                },
+                {
+                    source: {
+                        displayName: GanttData.ColumnCompletePrecntege,
+                        type: ValueType.fromDescriptor({ numeric: true }),
+                        roles: { 'Completion': true }
+                    },
+                    values: this.valuesCompletePrecntege
+                }
+                ], columnNames).build();
         }
     }
 }

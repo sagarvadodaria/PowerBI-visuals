@@ -24,6 +24,8 @@
  *  THE SOFTWARE.
  */
 
+/// <reference path="../_references.ts"/>
+
 module powerbi {
     export enum VisualDataRoleKind {
         /** Indicates that the role should be bound to something that evaluates to a grouping of values. */
@@ -36,11 +38,53 @@ module powerbi {
 
     export enum VisualDataChangeOperationKind {
         Create = 0,
-        Append = 1
+        Append = 1,
+    }
+
+    export enum VisualUpdateType {
+        Data = 1 << 1,
+        Resize = 1 << 2,
+        ViewMode = 1 << 3,
+        Style = 1 << 4,
+        ResizeEnd = 1 << 5,
+    }
+
+    export enum VisualPermissions {
+
     }
 
     export const enum CartesianRoleKind {
         X,
         Y,
+    }
+
+    export const enum ViewMode {
+        View = 0,
+        Edit = 1,
+    }
+
+    export const enum ResizeMode {
+        Resizing = 1,
+        Resized = 2,
+    }
+
+    export module visuals.telemetry {
+        export const enum TelemetryCategory {
+            Verbose,
+            CustomerAction,
+            CriticalError,
+            Trace,
+        }
+
+        export enum ErrorSource {
+            PowerBI = 0,
+            External = 1,
+            User = 2,
+        }
+    }
+
+    export const enum JoinPredicateBehavior {
+        /** Prevent items in this role from acting as join predicates. */
+        None,
     }
 }

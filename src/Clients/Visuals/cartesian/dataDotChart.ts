@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Power BI Visualizations
  *
  *  Copyright (c) Microsoft Corporation
@@ -24,11 +24,12 @@
  *  THE SOFTWARE.
  */
 
-/// <reference path="../_references.ts"/>
-
 /**
  * IMPORTANT: This chart is not currently enabled in the PBI system and is under development.
  */
+
+/// <reference path="../_references.ts"/>
+
 module powerbi.visuals {
 
     export interface IDataDotChartConfiguration {
@@ -117,6 +118,7 @@ module powerbi.visuals {
 
             // Common properties
             this.svg = options.svg;
+            this.svg.classed(DataDotChart.ClassName, true);
             this.mainGraphicsG = this.svg.append('g')
                 .classed('dataDotChartMainGraphicsContext', true);
             this.mainGraphicsContext = this.mainGraphicsG.append('svg');
@@ -129,9 +131,7 @@ module powerbi.visuals {
             // Interactivity properties
             this.interactivity = options.interactivity;
 
-            let element = this.element = options.element;
-            element.addClass(DataDotChart.ClassName);
-            element.css('overflow', 'visible');
+            this.element = options.element;
         }
 
         public setData(dataViews: DataView[]): void {
@@ -215,9 +215,9 @@ module powerbi.visuals {
                 this.clippedData = DataDotChart.createClippedDataIfOverflowed(data, layout.categoryCount);
             }
 
-            let yDomain = AxisHelper.createValueDomain(seriesArray, /*includeZero:*/ true) || fallBackDomain;
+            let yDomain = AxisHelper.createValueDomain(seriesArray, /*includeZero:*/ true) || emptyDomain;
 
-            let combinedDomain = AxisHelper.combineDomain(options.forcedYDomain, yDomain);
+            let combinedDomain = AxisHelper.combineDomain(options.forcedYDomain, yDomain, options.ensureYDomain);
 
             this.yAxisProperties = AxisHelper.createAxis({
                 pixelSpan: height,
@@ -229,11 +229,11 @@ module powerbi.visuals {
                 isVertical: true,
                 forcedTickCount: options.forcedTickCount,
                 useTickIntervalForDisplayUnits: true,
-                isCategoryAxis: true
+                isCategoryAxis: false
             });
 
             let axisType = this.xAxisProperties ? this.xAxisProperties.axisType : ValueType.fromDescriptor({ text: true });
-            let xDomain = AxisHelper.createDomain(seriesArray, axisType, /*isScalar:*/ false, options.forcedXDomain);
+            let xDomain = AxisHelper.createDomain(seriesArray, axisType, /*isScalar:*/ false, options.forcedXDomain, options.ensureXDomain);
             this.xAxisProperties = AxisHelper.createAxis({
                 pixelSpan: width,
                 dataDomain: xDomain,
@@ -246,7 +246,7 @@ module powerbi.visuals {
                 useTickIntervalForDisplayUnits: true,
                 categoryThickness: layout.categoryThickness,
                 getValueFn: (index, type) => this.lookupXValue(index, type),
-                isCategoryAxis: false
+                isCategoryAxis: true
             });
 
             return [this.xAxisProperties, this.yAxisProperties];

@@ -81,9 +81,35 @@ declare module powerbi {
 
         /** The KPI metadata to use to convert a numeric status value into its visual representation. */
         kpi?: DataViewKpiColumnMetadata;
+
+        /** Indicates that aggregates should not be computed across groups with different values of this column. */
+        discourageAggregationAcrossGroups?: boolean;
+
+        /** The aggregates computed for this column, if any. */
+        aggregates?: DataViewColumnAggregates;
     }
 
     export interface DataViewSegmentMetadata {
+    }
+
+    export interface DataViewColumnAggregates {
+        subtotal?: PrimitiveValue;
+        max?: PrimitiveValue;
+        min?: PrimitiveValue;
+        count?: number;
+        percentiles?: DataViewColumnPercentileAggregate[];
+
+        /** Client-computed maximum value for a column. */
+        maxLocal?: PrimitiveValue;
+
+        /** Client-computed maximum value for a column. */
+        minLocal?: PrimitiveValue;
+    }
+
+    export interface DataViewColumnPercentileAggregate {
+        exclusive?: boolean;
+        k: number;
+        value: PrimitiveValue;
     }
 
     export interface DataViewCategorical {
@@ -120,17 +146,13 @@ declare module powerbi {
     }
 
     export interface DataViewValueColumn extends DataViewCategoricalColumn {
-        subtotal?: any;
-        max?: any;
-        min?: any;
         highlights?: any[];
         identity?: DataViewScopeIdentity;
+    }
 
-        /** Client-computed maximum value for a column. */
-        maxLocal?: any;
-
-        /** Client-computed maximum value for a column. */
-        minLocal?: any;
+    // NOTE: The following is needed for backwards compatibility and should be deprecated.  Callers should use
+    // DataViewMetadataColumn.aggregates instead.
+    export interface DataViewValueColumn extends DataViewColumnAggregates {
     }
 
     export interface DataViewCategoryColumn extends DataViewCategoricalColumn {
@@ -150,9 +172,25 @@ declare module powerbi {
 
     export interface DataViewTreeNode {
         name?: string;
+
+        /**
+         * When used under the context of DataView.tree, this value is one of the elements in the values property.
+         *
+         * When used under the context of DataView.matrix, this property is the value of the particular 
+         * group instance represented by this node (e.g. In a grouping on Year, a node can have value == 2016).
+         *
+         * DEPRECATED for usage under the context of DataView.matrix: This property is deprecated for objects 
+         * that conform to the DataViewMatrixNode interface (which extends DataViewTreeNode).
+         * New visuals code should consume the new property levelValues on DataViewMatrixNode instead.
+         * If this node represents a composite group node in matrix, this property will be undefined.
+         */
         value?: any;
-        
-        /** In each of the key-value-pair in this this dictionary, the key is the position of the column in the select statement to which the value belongs. */
+      
+        /** 
+         * This property contains all the values in this node. 
+         * The key of each of the key-value-pair in this dictionary is the position of the column in the 
+         * select statement to which the value belongs.
+         */
         values?: { [id: number]: DataViewTreeNodeValue };
 
         children?: DataViewTreeNode[];
@@ -169,17 +207,8 @@ declare module powerbi {
         value?: any;
     }
 
-    export interface DataViewTreeNodeMeasureValue extends DataViewTreeNodeValue {
-        subtotal?: any;
-        max?: any;
-        min?: any;
+    export interface DataViewTreeNodeMeasureValue extends DataViewTreeNodeValue, DataViewColumnAggregates {
         highlight?: any;
-
-        /** Client-computed maximum value for a column. */
-        maxLocal?: any;
-
-        /** Client-computed maximum value for a column. */
-        minLocal?: any;
     }
 
     export interface DataViewTreeNodeGroupValue extends DataViewTreeNodeValue {
@@ -188,14 +217,18 @@ declare module powerbi {
 
     export interface DataViewTable {
         columns: DataViewMetadataColumn[];
+
         identity?: DataViewScopeIdentity[];
-        rows?: any[][]; // TODO: Should become a DataViewTableRow[]
+
+        /** The set of expressions that define the identity for rows of the table.  This must match items in the DataViewScopeIdentity in the identity. */
+        identityFields?: data.ISQExpr[];
+
+        rows?: DataViewTableRow[];
+
         totals?: any[];
     }
 
-    export interface DataViewTableRow {
-        values: any[];
-
+    export interface DataViewTableRow extends Array<any> {
         /** The metadata repetition objects. */
         objects?: DataViewObjects[];
     }
@@ -210,14 +243,64 @@ declare module powerbi {
         /** Indicates the level this node is on. Zero indicates the outermost children (root node level is undefined). */
         level?: number;
 
-        /** Indicates the source metadata index on the node's level. Its value is 0 if omitted. */
+        children?: DataViewMatrixNode[];
+
+         /* If this DataViewMatrixNode represents the  inner-most dimension of row groups (i.e. a leaf node), then this property will contain the values at the 
+         * matrix intersection under the group. The valueSourceIndex property will contain the position of the column in the select statement to which the 
+         * value belongs.
+         *
+         * When this DataViewMatrixNode is used under the context of DataView.matrix.columns, this property is not used.
+         */
+        values?: { [id: number]: DataViewMatrixNodeValue };         
+
+        /**
+         * Indicates the source metadata index on the node's level. Its value is 0 if omitted.
+         *
+         * DEPRECATED: This property is deprecated and exists for backward-compatibility only.
+         * New visuals code should consume the new property levelSourceIndex on DataViewMatrixGroupValue instead.
+         */
         levelSourceIndex?: number;
+
+        /**
+         * The values of the particular group instance represented by this node.
+         * This array property would contain more than one element in a composite group
+         * (e.g. Year == 2016 and Month == 'January').
+         */
+        levelValues?: DataViewMatrixGroupValue[];
 
         /** Indicates whether or not the node is a subtotal node. Its value is false if omitted. */
         isSubtotal?: boolean;
     }
 
+    /**
+     * Represents a value at a particular level of a matrix's rows or columns hierarchy.
+     * In the hierarchy level node is an instance of a composite group, this object will
+     * be one of multiple values
+     */
+    export interface DataViewMatrixGroupValue extends DataViewTreeNodeValue {
+        /**
+         * Indicates the index of the corresponding column for this group level value 
+         * (held by DataViewHierarchyLevel.sources).
+         *
+         * @example
+         * // For example, to get the source column metadata of each level value at a particular row hierarchy node:
+         * let matrixRowsHierarchy: DataViewHierarchy = dataView.matrix.rows;
+         * let targetRowsHierarchyNode = <DataViewMatrixNode>matrixRowsHierarchy.root.children[0];
+         * // Use the DataViewMatrixNode.level property to get the corresponding DataViewHierarchyLevel...
+         * let targetRowsHierarchyLevel: DataViewHierarchyLevel = matrixRows.levels[targetRowsHierarchyNode.level];
+         * for (let levelValue in rowsRootNode.levelValues) {
+         *   // columnMetadata is the source column for the particular levelValue.value in this loop iteration
+         *   let columnMetadata: DataViewMetadataColumn = 
+         *     targetRowsHierarchyLevel.sources[levelValue.levelSourceIndex];
+         * }
+         */
+        levelSourceIndex: number;
+    }
+
+    /** Represents a value at the matrix intersection, used in the values property on DataViewMatrixNode (inherited from DataViewTreeNode). */
     export interface DataViewMatrixNodeValue extends DataViewTreeNodeValue {
+        highlight?: any;
+
         /** Indicates the index of the corresponding measure (held by DataViewMatrix.valueSources). Its value is 0 if omitted. */
         valueSourceIndex?: number;
     }

@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Power BI Visualizations
  *
  *  Copyright (c) Microsoft Corporation
@@ -24,12 +24,12 @@
  *  THE SOFTWARE.
  */
 
-/// <reference path="../_references.ts"/>
-
 /**
  * Defined in host.
  */
 declare var clusterUri: string;
+
+/// <reference path="../_references.ts"/>
 
 module jsCommon {
 
@@ -739,6 +739,10 @@ module jsCommon {
             return regex.test(url);
         }
         
+        public static isLocalUrl(url: string): boolean {
+            return _.startsWith(url, "data:") || _.startsWith(url, "blob:");
+        }
+
         /**
          * Downloads a content string as a file.
          * @param content Content stream.

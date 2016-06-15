@@ -21,11 +21,11 @@ coverage
 
 # Compiled binary addons (http://nodejs.org/api/addons.html)
 /build/Release
-/build
+
+node_modules/
 
 # Dependency directory
 # https://www.npmjs.org/doc/misc/npm-faq.html#should-i-check-my-node_modules-folder-into-git
-node_modules
 Docs
 /src/.vs
 
@@ -35,11 +35,32 @@ src/Clients/Externals/ThirdPartyIP/JasmineJQuery/jasmine-jquery.js
 # Combine/Min/PNG Files
 src/Clients/Visuals/images/visuals.sprites.png
 src/Clients/Visuals/styles/sprites.less
+src/Clients/PowerBIVisualsPlayground/**/*.js
+!src/Clients/PowerBIVisualsPlayground/gulpProject.js
+src/Clients/PowerBIVisualsPlayground/**/*.d.ts
+src/Clients/PowerBIVisualsPlayground/visuals.min.css
+src/Clients/PowerBIVisualsPlayground/visuals.css
+src/Clients/PowerBIVisualsPlayground/images/visuals.sprites.png
+src/Clients/PowerBIVisualsPlayground/.vs
+src/Clients/PowerBIVisualsPlayground/bin
 
 # Test Files
 VisualsTests
-src/Clients/PowerBIVisualsTests/obj/
+src/Clients/PowerBIVisualsTests/obj/**/*.css
 src/Clients/PowerBIVisualsTests/**/*.js
+!src/Clients/PowerBIVisualsTests/karma.conf.js
+!src/Clients/PowerBIVisualsTests/webpack.config.js
+
+# CustomVisuals packages
+src/Clients/CustomVisuals/services/*.js
+src/Clients/CustomVisuals/visuals/*/release
+src/Clients/CustomVisuals/visuals/*/package/package.json
+src/Clients/CustomVisuals/visuals/*/package/**/*.ts
+src/Clients/CustomVisuals/visuals/**/*.js
+src/Clients/CustomVisuals/visuals/**/*.css
+
+# Dont ignore telemetry files
+!**/telemetry/*.ts
 
 # Obj dirs
 src/Clients/**/obj/*.*
@@ -47,25 +68,8 @@ src/Clients/**/obj/*.*
 # IDE temp data
 .sublime-gulp.cache
 
-# CustomVisualTemplate
-tools/CustomVisualTemplate/CustomVisualTemplate/bin/
-tools/CustomVisualTemplate/CustomVisualTemplate/obj/
-tools/CustomVisualTemplate/ICustomVisualTemplate/bin/
-tools/CustomVisualTemplate/ICustomVisualTemplate/obj/
-tools/CustomVisualTemplate/obj/
-tools/CustomVisualTemplate/DTAR_08E86330_4835_4B5C_9E5A_61F37AE1A077_DTAR
-tools/CustomVisualTemplate/.vs/
+# Images
+lib/images/ui-icons_222222_256x240.png
 
-# PowerBIVisualsPlayground
-src/Clients/PowerBIVisualsPlayground/**/*.css
-src/Clients/PowerBIVisualsPlayground/**/*.js
-src/Clients/PowerBIVisualsPlayground/**/*.map
-!src/Clients/PowerBIVisualsPlayground/gulpProject.js
-src/Clients/PowerBIVisualsPlayground/**/*.d.ts
-src/Clients/PowerBIVisualsPlayground/images/visuals.sprites.png
-src/Clients/PowerBIVisualsPlayground/.vs
-src/Clients/PowerBIVisualsPlayground/bin
-src/Clients/PowerBIVisualsPlayground/styles/**/*.png
-
-# Styles
-src/Clients/**/styles/*.css
+# Package
+lib/tests

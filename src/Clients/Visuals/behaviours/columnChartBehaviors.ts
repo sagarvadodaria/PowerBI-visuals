@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Power BI Visualizations
  *
  *  Copyright (c) Microsoft Corporation
@@ -46,16 +46,32 @@ module powerbi.visuals {
             let eventGroup = options.eventGroup;
 
             eventGroup.on('click', () => {
-                let target = d3.event.target;
-                let d = d3.select(target).datum();
+                let d = ColumnChartWebBehavior.getDatumForLastInputEvent();
                 
                 selectionHandler.handleSelection(d, d3.event.ctrlKey);
+            });
+
+            eventGroup.on('contextmenu', () => {
+                if (d3.event.ctrlKey)
+                    return;
+
+                d3.event.preventDefault();
+
+                let d = ColumnChartWebBehavior.getDatumForLastInputEvent();
+                let position = InteractivityUtils.getPositionOfLastInputEvent();
+                
+                selectionHandler.handleContextMenu(d, position);
             });
         }
 
         public renderSelection(hasSelection: boolean) {
             let options = this.options;
             options.bars.style("fill-opacity", (d: ColumnChartDataPoint) => ColumnUtil.getFillOpacity(d.selected, d.highlight, !d.highlight && hasSelection, !d.selected && options.hasHighlights));
+        }
+
+        private static getDatumForLastInputEvent(): any {
+            let target = d3.event.target;
+            return d3.select(target).datum();
         }
     }
 } 

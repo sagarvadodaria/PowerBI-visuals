@@ -24,11 +24,12 @@
  *  THE SOFTWARE.
  */
 
-
+/// <reference path="../../_references.ts"/>
 
 module powerbitests {
     import SelectableDataPoint = powerbi.visuals.SelectableDataPoint;
     import SelectionId = powerbi.visuals.SelectionId;
+    import SelectionIdBuilder = powerbi.visuals.SelectionIdBuilder;
     import SQExprBuilder = powerbi.data.SQExprBuilder;
     import MockBehavior = powerbitests.mocks.MockBehavior;
 
@@ -154,6 +155,33 @@ module powerbitests {
             expect(host.onSelect).toHaveBeenCalledWith({ data: [selectableDataPoints[0].identity.getSelector()] });
         });
 
+        it('ContextMenu request sent to host', () => {
+            let categoryA = mocks.dataViewScopeIdentity('A');
+            let categoryColumn: powerbi.DataViewCategoryColumn = {
+                source: {
+                    queryName: 'categoryA',
+                    displayName: 'testDisplayName'
+                },
+                identity: [categoryA],
+                values: []
+            };
+
+            let id = SelectionIdBuilder.builder().withCategory(categoryColumn, 0).createSelectionId();
+            let dataPoint: SelectableDataPoint = {
+                selected: false,
+                identity: id
+            };
+
+            let contextMenuSpy = spyOn(host, "onContextMenu");
+            interactivityService.handleContextMenu(dataPoint, { x: 5, y: 15 });
+
+            expect(contextMenuSpy.calls.argsFor(0)[0].data[0]).toEqual({
+                dataMap: {
+                    categoryA: id.getSelector().data[0]
+                }
+            });
+        });
+
         it('persistSelectionFilter calls persistProperties', () => {
             interactivityService.bind(selectableDataPoints, behavior, null);
             spyOn(host, "persistProperties");
@@ -265,6 +293,31 @@ module powerbitests {
             expect(behavior.verifySelectionState([false, false, true, false, false, false])).toBeTruthy();
             behavior.selectIndex(5, true);
             expect(behavior.verifySelectionState([false, false, false, false, false, true])).toBeTruthy();
+        });
+
+        it('Multiselect cannot mix measure-only with non-measure-only selections', () => {
+            let mixedSelectableDataPoints = [
+                { selected: false, identity: SelectionId.createWithIdsAndMeasure(mocks.dataViewScopeIdentity("0"), mocks.dataViewScopeIdentity("a"), "queryName") },
+                { selected: false, identity: SelectionId.createWithIdsAndMeasure(mocks.dataViewScopeIdentity("0"), mocks.dataViewScopeIdentity("b"), "queryName") },
+                { selected: false, identity: SelectionId.createWithIdsAndMeasure(mocks.dataViewScopeIdentity("1"), mocks.dataViewScopeIdentity("a"), "queryName") },
+                { selected: false, identity: SelectionId.createWithIdsAndMeasure(mocks.dataViewScopeIdentity("1"), mocks.dataViewScopeIdentity("b"), "queryName") },
+                { selected: false, identity: SelectionId.createWithIdsAndMeasure(mocks.dataViewScopeIdentity("2"), mocks.dataViewScopeIdentity("a"), "queryName") },
+                { selected: false, identity: SelectionId.createWithIdsAndMeasure(mocks.dataViewScopeIdentity("2"), mocks.dataViewScopeIdentity("b"), "queryName") },
+                { selected: false, identity: SelectionId.createWithMeasure("queryName2") },
+                { selected: false, identity: SelectionId.createWithMeasure("queryName3") },
+            ];
+            let mixedBehavior = new MockBehavior(mixedSelectableDataPoints, filterPropertyId);
+            interactivityService.bind(mixedSelectableDataPoints, mixedBehavior, null);
+            mixedBehavior.selectIndex(1, true);
+            expect(mixedBehavior.verifySelectionState([false, true, false, false, false, false, false, false])).toBeTruthy();
+            mixedBehavior.selectIndex(2, true);
+            expect(mixedBehavior.verifySelectionState([false, true, true, false, false, false, false, false])).toBeTruthy();
+            mixedBehavior.selectIndex(6, true);
+            expect(mixedBehavior.verifySelectionState([false, false, false, false, false, false, true, false])).toBeTruthy();
+            mixedBehavior.selectIndex(7, true);
+            expect(mixedBehavior.verifySelectionState([false, false, false, false, false, false, true, true])).toBeTruthy();
+            mixedBehavior.selectIndex(1, true);
+            expect(mixedBehavior.verifySelectionState([false, true, false, false, false, false, false, false])).toBeTruthy();
         });
 
         describe('overrideSelectionFromData', () => {

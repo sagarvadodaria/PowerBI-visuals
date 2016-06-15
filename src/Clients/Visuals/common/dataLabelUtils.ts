@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Power BI Visualizations
  *
  *  Copyright (c) Microsoft Corporation
@@ -174,6 +174,9 @@ module powerbi.visuals {
                     labelSettings.showLabelPerSeries = labelsObj.showAll;
                 if (labelsObj.labelStyle !== undefined)
                     labelSettings.labelStyle = labelsObj.labelStyle;
+                if(labelsObj.labelPosition) {
+                    labelSettings.position = labelsObj.labelPosition;
+                }
             }
         }
 
@@ -192,7 +195,6 @@ module powerbi.visuals {
                 displayUnits: 0,
                 precision: defaultLabelPrecision,
                 labelColor: labelColor || defaultLabelColor,
-                formatterOptions: null,
                 fontSize: fontSize || DefaultFontSizeInPt,
             };
         }
@@ -211,12 +213,18 @@ module powerbi.visuals {
                 precision: defaultLabelPrecision,
                 labelColor: defaultInsideLabelColor,
                 showCategory: true,
-                formatterOptions: null,
             };
         }
 
         export function getDefaultSunburstLabelSettings(): VisualDataLabelsSettings {
-            return getDefaultTreemapLabelSettings();
+            return {
+                show: false,                                
+                labelColor: defaultInsideLabelColor,
+                fontSize: DefaultFontSizeInPt,
+                displayUnits: 0,
+                precision: defaultLabelPrecision,
+                showCategory: true,
+            };
         }
 
         export function getDefaultColumnLabelSettings(isLabelPositionInside: boolean): VisualDataLabelsSettings {
@@ -233,7 +241,6 @@ module powerbi.visuals {
                 displayUnits: 0,
                 precision: defaultLabelPrecision,
                 labelColor: defaultLabelColor,
-                formatterOptions: null,
                 fontSize: DefaultFontSizeInPt,
             };
         }
@@ -245,7 +252,6 @@ module powerbi.visuals {
                 displayUnits: 0,
                 precision: defaultLabelPrecision,
                 labelColor: defaultLabelColor,
-                formatterOptions: null,
                 fontSize: DefaultFontSizeInPt,
                 labelDensity: isComboChart ? NewDataLabelUtils.LabelDensityMax : NewDataLabelUtils.LabelDensityMin,
             };
@@ -259,7 +265,6 @@ module powerbi.visuals {
                 displayUnits: 0,
                 precision: defaultLabelPrecision,
                 labelColor: defaultInsideLabelColor,
-                formatterOptions: null,
                 fontSize: DefaultFontSizeInPt,
             };
         }
@@ -278,19 +283,6 @@ module powerbi.visuals {
                 labelColor: null,
                 position: null,
                 fontSize: dataLabelUtils.minLabelFontSize,
-                formatterOptions: null,
-            };
-        }
-
-        export function getDefaultFunnelLabelSettings(): VisualDataLabelsSettings {
-            return {
-                show: true,
-                position: powerbi.visuals.labelPosition.insideCenter,
-                displayUnits: 0,
-                precision: defaultLabelPrecision,
-                labelColor: defaultLabelColor,
-                formatterOptions: null,
-                fontSize: DefaultFontSizeInPt,
             };
         }
 
@@ -302,7 +294,6 @@ module powerbi.visuals {
                 labelColor: defaultLabelColor,
                 position: null,
                 showCategory: true,
-                formatterOptions: null,
             };
         }
 
@@ -317,7 +308,7 @@ module powerbi.visuals {
 
             if (format) {
                 // Calculate precision from positive format by default
-                let positiveFormat = format.split(";")[0];
+                let positiveFormat = NumberFormat.getComponents(format).positive;
                 let formatMetadata = NumberFormat.getCustomFormatMetadata(positiveFormat, true /*calculatePrecision*/);
                 if (formatMetadata.hasDots) {
                     return formatMetadata.precision;
@@ -368,35 +359,6 @@ module powerbi.visuals {
                     .exit()
                     .remove();
             }
-
-            return labels;
-        }
-        
-        /**
-         * Note: Funnel chart uses animation and does not use collision detection.
-         */
-        export function drawDefaultLabelsForFunnelChart(data: FunnelSlice[], context: D3.Selection, layout: ILabelLayout, isAnimator: boolean = false, animationDuration?: number): D3.UpdateSelection {
-            debug.assertValue(data, 'data could not be null or undefined');
-
-            let filteredData = data.filter(layout.filter);
-
-            let labels = selectLabels(filteredData, context);
-
-            if (!labels)
-                return;
-
-            labels
-                .attr(layout.labelLayout)
-                .text(layout.labelText)
-                .style(layout.style);
-
-            if (isAnimator && animationDuration) {
-                labels.transition().duration(animationDuration);
-            }
-
-            labels
-                .exit()
-                .remove();
 
             return labels;
         }
@@ -682,7 +644,7 @@ module powerbi.visuals {
             return {
                 labelText: (d: ScatterChartDataPoint) => {
                     return getLabelFormattedText({
-                        label: d.category,
+                        label: d.formattedCategory.getValue(),
                         maxWidth: maxLabelWidth * 2.0
                     });
                 },
@@ -694,7 +656,7 @@ module powerbi.visuals {
                     },
                 },
                 filter: (d: ScatterChartDataPoint) => {
-                    return (d != null && d.category != null);
+                    return (d != null && d.formattedCategory.getValue() != null);
                 },
                 style: {
                     'fill': (d: ScatterChartDataPoint) => d.labelFill,
@@ -724,123 +686,6 @@ module powerbi.visuals {
                 },
             };
         }
-        
-        export function getFunnelChartLabelLayout(
-            data: FunnelData,
-            axisOptions: FunnelAxisOptions,
-            textMinimumPadding: number,
-            labelSettings: VisualDataLabelsSettings,
-            currentViewport: IViewport): ILabelLayout {
-
-            let yScale = axisOptions.yScale;
-            let xScale = axisOptions.xScale;
-            let marginLeft = axisOptions.margin.left;
-            let innerTextHeightRate = 0.7;
-            let rangeBand = axisOptions.xScale.rangeBand();
-
-            //the bars are tranform, verticalRange mean horizontal range, xScale is y, yscale is x
-            let pixelSpan = axisOptions.verticalRange / 2;
-            let formatString = valueFormatter.getFormatString(data.valuesMetadata[0], funnelChartProps.general.formatString);
-            let textMeasurer: ITextAsSVGMeasurer = TextMeasurementService.measureSvgTextWidth;
-
-            let value2: number = null;
-            if (labelSettings.displayUnits === 0) {
-                let minY = <number>d3.min(data.slices, (d) => { return d.value; });
-                let maxY = <number>d3.max(data.slices, (d) => { return d.value; });
-                value2 = Math.max(Math.abs(minY), Math.abs(maxY));
-            }
-
-            let formattersCache = createColumnFormatterCacheManager();
-
-            return {
-                labelText: (d: FunnelSlice) => {
-                    let barWidth = Math.abs(yScale(d.value) - yScale(0));
-                    let insideAvailableSpace = Math.abs(yScale(d.value) - yScale(0)) - (textMinimumPadding * 2);
-                    let outsideAvailableSpace = pixelSpan - (barWidth / 2) - textMinimumPadding;
-                    let labelFormatString = (formatString != null) ? formatString : d.labelFormatString;
-
-                    let maximumTextSize = Math.max(insideAvailableSpace, outsideAvailableSpace);
-                    let formatter = formattersCache.getOrCreate(labelFormatString, labelSettings, value2);
-                    let labelText = formatter.format(FunnelChart.getFunnelSliceValue(d, true /* asOriginal */));
-                    return getLabelFormattedText({
-                        label: labelText,
-                        maxWidth: maximumTextSize,
-                        fontSize: labelSettings.fontSize
-                    });
-                },
-                labelLayout: {
-                    y: (d: FunnelSlice, i) => {
-                        let properties: TextProperties = {
-                            text: d.labeltext,
-                            fontFamily: LabelTextProperties.fontFamily,
-                            fontSize: PixelConverter.fromPoint(labelSettings.fontSize),
-                            fontWeight: LabelTextProperties.fontWeight,
-                        };
-                        //in order to make it center aligned we should 'correct' the height to not calculate text margin
-                        let labelHeight = TextMeasurementService.estimateSvgTextHeight(properties);
-                        return xScale(i) + (rangeBand / 2) + (labelHeight / 2);
-                    },
-                    x: (d: FunnelSlice) => {
-                        let barWidth = Math.abs(yScale(d.value) - yScale(0));
-                        let insideAvailableSpace = Math.abs(yScale(d.value) - yScale(0)) - (textMinimumPadding * 2);
-                        let outsideAvailableSpace = pixelSpan - (barWidth / 2) - textMinimumPadding;
-                        let maximumTextSize = Math.max(insideAvailableSpace, outsideAvailableSpace);
-                        let labelFormatString = (formatString != null) ? formatString : d.labelFormatString;
-
-                        let formatter = formattersCache.getOrCreate(labelFormatString, labelSettings, value2);
-                        let labelText = formatter.format(FunnelChart.getFunnelSliceValue(d, true /* asOriginal */));
-                        let properties: TextProperties = {
-                            text: getLabelFormattedText({
-                                label: labelText,
-                                maxWidth: maximumTextSize
-                            }),
-                            fontFamily: LabelTextProperties.fontFamily,
-                            fontSize: PixelConverter.fromPoint(labelSettings.fontSize),
-                            fontWeight: LabelTextProperties.fontWeight,
-                        };
-
-                        let textLength = textMeasurer(properties);
-
-                        // Try to honor the position, but if the label doesn't fit where specified, then swap the position.
-                        let labelPositionValue = labelSettings.position;
-                        if ((labelPositionValue === labelPosition.outsideEnd && outsideAvailableSpace < textLength) || d.value === 0)
-                            labelPositionValue = labelPosition.insideCenter;
-                        else if (labelPositionValue === labelPosition.insideCenter && insideAvailableSpace < textLength) {
-                            labelPositionValue = labelPosition.outsideEnd;
-                        }
-
-                        switch (labelPositionValue) {
-                            case labelPosition.outsideEnd:
-                                return marginLeft + pixelSpan + (barWidth / 2) + textMinimumPadding + (textLength / 2);
-                            default:
-                                // Inside position, change color to white unless value is 0
-                                d.labelFill = d.value !== 0 ? defaultInsideLabelColor : d.labelFill;
-                                return marginLeft + pixelSpan;
-                        }
-                    },
-                    dy: '-0.15em',
-                },
-                filter: (d: FunnelSlice) => {
-                    if (!(d != null && d.value != null && data.hasHighlights === !!d.highlight))
-                        return false;
-
-                    let properties: TextProperties = {
-                        text: d.labeltext,
-                        fontFamily: LabelTextProperties.fontFamily,
-                        fontSize: PixelConverter.fromPoint(labelSettings.fontSize),
-                        fontWeight: LabelTextProperties.fontWeight,
-                    };
-
-                    let labelHeight = TextMeasurementService.estimateSvgTextHeight(properties) * innerTextHeightRate;
-                    return labelHeight < rangeBand;
-                },
-                style: {
-                    'fill': (d: FunnelSlice) => d.labelFill,
-                    'fill-opacity': (d: FunnelSlice) => ColumnUtil.getFillOpacity(d.selected, false, false, false),
-                    'font-size': (d: FunnelSlice) => PixelConverter.fromPoint(labelSettings.fontSize),
-                },
-            };
-        }
 
         export function enumerateDataLabels(
             options: VisualDataLabelsSettingsOptions): ObjectEnumerationBuilder {
@@ -864,7 +709,7 @@ module powerbi.visuals {
                 instance.properties['show'] = options.dataLabelsSettings.show;
             }
 
-            instance.properties['color'] = options.dataLabelsSettings.labelColor;
+            instance.properties['color'] = options.dataLabelsSettings.labelColor || defaultLabelColor;
 
             if (options.displayUnits) {
                 instance.properties['labelDisplayUnits'] = options.dataLabelsSettings.displayUnits;
@@ -967,5 +812,13 @@ module powerbi.visuals {
                 allowFormatBeautification: true,
             };
         }
+
+        export function isTextWidthOverflows(textWidth, maxTextWidth): boolean {
+            return textWidth > maxTextWidth;
+        };
+
+        export function isTextHeightOverflows(textHeight, innerChordLength): boolean {
+            return textHeight > innerChordLength;
+        };
     }
 }

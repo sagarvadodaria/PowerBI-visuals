@@ -140,5 +140,6 @@ declare module powerbi.data {
         queryName: string;
         //changed to descriptor to not need to depend on ValueType class
         type?: ValueTypeDescriptor;
+        joinPredicate?: JoinPredicateBehavior;
     }
 }

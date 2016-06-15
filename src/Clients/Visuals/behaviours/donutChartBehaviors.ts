@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Power BI Visualizations
  *
  *  Copyright (c) Microsoft Corporation
@@ -51,8 +51,20 @@ module powerbi.visuals {
                 selectionHandler.handleSelection(d.data, d3.event.ctrlKey);
             };
 
+            let contextMenuHandler = (d: DonutArcDescriptor) => {
+                if (d3.event.ctrlKey)
+                    return;
+
+                let position = InteractivityUtils.getPositionOfLastInputEvent();
+                selectionHandler.handleContextMenu(d.data, position);
+                d3.event.preventDefault();
+            };
+
             slices.on('click', clickHandler);
+            slices.on('contextmenu', contextMenuHandler);
+
             highlightSlices.on('click', clickHandler);
+            highlightSlices.on('contextmenu', contextMenuHandler);
 
             clearCatcher.on('click', () => {
                 selectionHandler.handleClearSelection();

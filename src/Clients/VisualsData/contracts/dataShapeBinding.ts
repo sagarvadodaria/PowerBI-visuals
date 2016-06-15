@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Power BI Visualizations
  *
  *  Copyright (c) Microsoft Corporation
@@ -61,11 +61,13 @@ module powerbi.data {
         Version?: number;
         Primary: DataShapeBindingAxis;
         Secondary?: DataShapeBindingAxis;
+        Aggregates?: DataShapeBindingAggregate[];
         Projections?: number[];
         Limits?: DataShapeBindingLimit[];
         Highlights?: FilterDefinition[];
         DataReduction?: DataShapeBindingDataReduction;
         IncludeEmptyGroups?: boolean;
+        SuppressedJoinPredicates?: number[];
     }
 
     export interface DataShapeBindingDataReduction {
@@ -110,8 +112,38 @@ module powerbi.data {
 
     export interface DataShapeBindingAxisGrouping {
         Projections: number[];
+        GroupBy?: number[];
         SuppressedProjections?: number[];
         Subtotal?: SubtotalType;
         ShowItemsWithNoData?: number[];
-    }    
+    }
+
+    export interface DataShapeBindingAggregate {
+        Select: number;
+        Kind?: DataShapeBindingAggregateKind;
+        Aggregations?: DataShapeBindingSelectAggregateContainer[];
+    }
+
+    export const enum DataShapeBindingAggregateKind {
+        None = 0,
+        Min = 1,
+        Max = 1 << 1,
+    }
+
+    export interface DataShapeBindingSelectAggregateContainer {
+        Percentile?: DataShapeBindingSelectPercentileAggregate;
+        Min?: DataShapeBindingSelectMinAggregate;
+        Max?: DataShapeBindingSelectMaxAggregate;
+    }
+
+    export interface DataShapeBindingSelectPercentileAggregate {
+        Exclusive?: boolean;
+        K: number;
+    }
+
+    export interface DataShapeBindingSelectMaxAggregate {
+    }
+
+    export interface DataShapeBindingSelectMinAggregate {
+    }
 } 

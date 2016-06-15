@@ -24,6 +24,8 @@
 *  THE SOFTWARE.
 */
 
+/// <reference path="../_references.ts"/>
+
 module powerbi.visuals.sampleDataViews {
     import DataViewTransform = powerbi.data.DataViewTransform;
     
@@ -64,8 +66,6 @@ module powerbi.visuals.sampleDataViews {
                         isMeasure: true,
                         objects: { general: { formatString: '$0' } },
                     }],
-                groups: [],
-                measures: [0],
             };
 
             return [{

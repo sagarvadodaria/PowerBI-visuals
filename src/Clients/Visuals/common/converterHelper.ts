@@ -24,7 +24,7 @@
  *  THE SOFTWARE.
  */
 
- /// <reference path="../_references.ts"/>
+/// <reference path="../_references.ts"/>
 
 module powerbi.visuals {
     import DataRoleHelper = powerbi.data.DataRoleHelper;
@@ -156,6 +156,15 @@ module powerbi.visuals {
                 return false;
 
             return _.any(dataView.metadata.columns, column => isImageUrlColumn(column) === true);
+        }
+
+        export function formatFromMetadataColumn(value: any, column: DataViewMetadataColumn, formatStringProp: DataViewObjectPropertyIdentifier): string {
+            debug.assertValue(column, 'column should exist');
+            let formatString: string = valueFormatter.getFormatString(column, formatStringProp, true);
+            if (!formatString && column) {
+                formatString = column.format;
+            }
+            return valueFormatter.format(value, formatString);
         }
     }
 }

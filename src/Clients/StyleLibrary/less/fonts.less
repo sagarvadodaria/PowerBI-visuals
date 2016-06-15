@@ -24,11 +24,16 @@
  *  THE SOFTWARE.
  */
 
-/* BUG 6439234: CSS embedded fonts are loading once per stylesheet
-   ===============================================================
-   The following line causes fonts to load once per stylesheet, and needs to be removed. 
-   The Style Library CSS should be the only place where these get loaded. There are currently tests dependencies on this CSS.
-*/
-@import "fontImports.less";
+@lightFontFamily: 'Segoe UI Light','wf_segoe-ui_light', helvetica, arial, sans-serif;
+@semilightFontFamily: 'Segoe UI Semilight','wf_segoe-ui_semilight', helvetica, arial, sans-serif;
+@regularFontFamily: 'Segoe UI','wf_segoe-ui_normal', helvetica, arial, sans-serif;
+@semiboldFontFamily: 'Segoe UI Semibold','wf_segoe-ui_semibold', helvetica, arial, sans-serif;
+@boldFontFamily: 'Segoe UI Bold','wf_segoe-ui_bold', helvetica, arial, sans-serif;
 
-@import "fontVariables.less";
+@lightSecondaryFontFamily: 'wf_standard-font_light', helvetica, arial, sans-serif;
+@regularSecondaryFontFamily: 'wf_standard-font', helvetica, arial, sans-serif;
+@boldSecondaryFontFamily: 'wf_standard-font_bold', helvetica, arial, sans-serif;
+
+@smallFontSize: 12px;
+@mediumFontSize: 14px;
+@largeFontSize: 16px;

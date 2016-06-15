@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Power BI Visualizations
  *
  *  Copyright (c) Microsoft Corporation
@@ -49,14 +49,12 @@ module powerbi.visuals {
             let areas = this.areas = options.areas;
             let tooltipOverlay = this.tooltipOverlay = options.tooltipOverlay;
 
-            let clickHandler = (d: SelectableDataPoint) => {
-                selectionHandler.handleSelection(d, d3.event.ctrlKey);
-            };
+            InteractivityUtils.registerStandardInteractivityHandlers(interactivityLines, selectionHandler);
+            InteractivityUtils.registerStandardInteractivityHandlers(dots, selectionHandler);
 
-            interactivityLines.on('click', clickHandler);
-            dots.on('click', clickHandler);
-            if (areas)
-                areas.on('click', clickHandler);
+            if (areas) {
+                InteractivityUtils.registerStandardInteractivityHandlers(areas, selectionHandler);
+            }
 
             if (tooltipOverlay)
                 tooltipOverlay.on('click', () => selectionHandler.handleClearSelection());

@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Power BI Visualizations
  *
  *  Copyright (c) Microsoft Corporation
@@ -86,24 +86,77 @@ module powerbi.data {
         additionalProjections?: AdditionalQueryProjection[];
         highlightFilter?: SemanticFilter;
         restartToken?: RestartToken;
-        viewport?: IViewport;
+        dataWindow?: QueryGeneratorDataWindow;
     }
 
     export interface AdditionalQueryProjection {
         queryName: string;
         selector: Selector;
+        aggregates?: ProjectionAggregates;
+    }
+
+    export interface ProjectionAggregates {
+        min?: boolean;
+        max?: boolean;
+        percentiles?: ProjectionPercentileAggregate[];
+    }
+
+    export interface ProjectionPercentileAggregate {
+        exclusive?: boolean;
+        k: number;
     }
 
     export interface QueryGeneratorResult {
         command: DataReaderQueryCommand;
         splits?: DataViewSplitTransform[];
+
+        /**
+         * If the query generator needs to rewrite the input query, this property will contain information about the important changes.
+         *
+         * Any rewrite done by query generator should be internal to the particular query generator, but in some rare cases this information
+         * is needed in order for other components to correctly consume the query result.
+         */
+        queryRewrites?: QueryRewriteRecordContainer[];
     }
 
+    /**
+     * In each instance of QueryRewriteRecordContainer, exactly one of the optional properties will be populated with change record.
+     */
+    export interface QueryRewriteRecordContainer {
+        selectExprAdded?: QueryRewriteSelectExprAddedRecord;
+        projectionQueryRefChanged?: QueryRewriteProjectionQueryRefChangedRecord;
+    }
+
+    /** Indicates a new SQExpr got added at a particular index. */
+    export interface QueryRewriteSelectExprAddedRecord {
+        selectIndex: number;
+        namedSQExpr: NamedSQExpr;
+    }
+
+    /** Indicates a queryRef in the query projection for a particular role got changed. */
+    export interface QueryRewriteProjectionQueryRefChangedRecord {
+        /** The role for which a queryRef in the query projection got changed. */
+        role: string;
+
+        /** The original queryRef. */
+        oldQueryRef: string;
+
+        /** The new, internal queryRef. */
+        newInternalQueryRef: string;
+    }
+    
     export interface DataReaderTransformResult {
         dataView?: DataView;
         restartToken?: RestartToken;
         error?: IClientError;
         warning?: IClientWarning;
+
+        /** A value of true in this property indicates that the DataReaderData object from which this result is generated should not get persisted as contract cache nor server cache. */
+        disallowPersisting?: boolean;
+    }
+
+    export interface QueryGeneratorDataWindow {
+        // This interface is intentionally empty, as plugins define their own data structure.
     }
 
     export interface RestartToken {
@@ -138,7 +191,9 @@ module powerbi.data {
         dataSource?: DataReaderDataSource;
         command: DataReaderCommand;
         allowCache?: boolean;
+        allowClientSideFilters?: boolean;
         cacheResponseOnServer?: boolean;
+        ignoreViewportForCache?: boolean;
     }
 
     export interface FederatedConceptualSchemaReaderOptions {
@@ -150,6 +205,9 @@ module powerbi.data {
 
         /** Specifies the name used in Semantic Queries to reference this DataSource. */
         name: string;
+
+        /** Specifies the type of IDataReaderPlugin. */
+        type?: string;
     }
 
     export interface FederatedConceptualSchemaResponse {

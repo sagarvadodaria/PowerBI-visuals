@@ -24,50 +24,134 @@
  *  THE SOFTWARE.
  */
 
-
+/// <reference path="../_references.ts"/>
 
 module powerbitests.customVisuals {
+    powerbitests.mocks.setLocale();
     import VisualClass = powerbi.visuals.samples.WordCloud;
+    import colorAssert = powerbitests.helpers.assertColorsMatch;
+    import CountriesData = powerbitests.customVisuals.sampleDataViews.CountriesData;
 
     describe("WordCloud", () => {
+        let visualBuilder: WordCloudBuilder;
+        let defaultDataViewBuilder: CountriesData;
+        let dataView: powerbi.DataView;
+
+        beforeEach(() => {
+            visualBuilder = new WordCloudBuilder(1000,500);
+            defaultDataViewBuilder = new CountriesData();
+            dataView = defaultDataViewBuilder.getDataView();
+        });
+
         describe('capabilities', () => {
             it("registered capabilities", () => expect(VisualClass.capabilities).toBeDefined());
         });
 
+        // function that returns afghanistan from an array
+        const func = e => e.innerHTML === "Afghanistan" || e.textContent === "Afghanistan";
+
+        // function that uses grep to filter
+        const grep = (val) => {
+            return $.grep(val, func);
+        };
+
         describe("DOM tests", () => {
-            let visualBuilder: WordCloudBuilder;
-            let dataViews: powerbi.DataView[];
-            
-            beforeEach(() => {
-                visualBuilder = new WordCloudBuilder();
-                dataViews = [new powerbitests.customVisuals.sampleDataViews.CountriesData().getDataView()];
+            it("svg element created", () => expect(visualBuilder.mainElement[0]).toBeInDOM());
+
+            it("basic update", (done) => {
+                visualBuilder.updateRenderTimeout(dataView, () => {
+                    expect(visualBuilder.mainElement.children("g").children("g.words").children("text.word").length)
+                        .toBeGreaterThan(0);
+                    done();
+                });
             });
 
-            it("svg element created", () => expect(visualBuilder.mainElement[0]).toBeInDOM());
-            //it("update", (done) => {
-            //    visualBuilder.update(dataViews);
-            //    setTimeout(() => {
-            //        expect(visualBuilder.mainElement.children("g").children("g.words").children("text.word").length)
-            //            .toBeGreaterThan(0);
-            //        done();
-            //    }, DefaultWaitForRender);
-            //});
+            it("Word stop property change", (done) => {
+                visualBuilder.updateRenderTimeout(dataView, () => {
+                    expect(grep(visualBuilder.mainElement.children("g").children("g.words").children("text.word").toArray()).length)
+                        .toBeGreaterThan(0);
+
+                    dataView.metadata.objects = { stopWords: { show: true, words: "Afghanistan" } };
+
+                    visualBuilder.updateRenderTimeout(dataView, () => {
+                        expect(grep(visualBuilder.mainElement.children("g").children("g.words").children("text.word").toArray()).length)
+                            .toBe(0);
+                        done();
+                    });
+                }, 100);
+            });
+
+            it("Word returns after word stop property is changed back", (done) => {
+                visualBuilder.updateRenderTimeout(dataView, () => {
+                    expect(grep(visualBuilder.mainElement.children("g").children("g.words").children("text.word").toArray()).length)
+                        .toBeGreaterThan(0);
+
+                    dataView.metadata.objects = { stopWords: { show: true, words: "Afghanistan" } };
+
+                    visualBuilder.updateRenderTimeout(dataView, () => {
+                        expect(grep(visualBuilder.mainElement.children("g").children("g.words").children("text.word").toArray()).length)
+                            .toBe(0);
+
+                        dataView.metadata.objects = { stopWords: { show: false } };
+
+                        visualBuilder.updateRenderTimeout(dataView, () => {
+                            expect(grep(visualBuilder.mainElement.children("g").children("g.words").children("text.word").toArray()).length)
+                                .toBeGreaterThan(0);
+                            done();
+                        });
+                    }, 100);
+                }, 200);
+            });
+
+            it("change color for first country (Afghanistan)", (done) => {
+                visualBuilder.updateRenderTimeout(dataView, () => {
+                    let baseWordColor = $(grep(visualBuilder.mainElement.children("g").children("g.words").children("text.word").toArray())).css('fill');
+
+                    dataView.categorical.categories[0].objects = [{ dataPoint: { fill: { solid: { color: "#00B8AA" } } } }];
+
+                    visualBuilder.updateRenderTimeout(dataView, () => {
+                        colorAssert(($(grep(visualBuilder.mainElement
+                            .children("g")
+                            .children("g.words")
+                            .children("text.word").toArray())).css('fill')), baseWordColor, true);
+                        done();
+                    });
+                }, 100);
+            });
+
+            it("click on first visual, then click on the second visual dosen't remove items", (done) => {
+                let secondVisualBuilder = new WordCloudBuilder(500, 1000);
+
+                visualBuilder.update(dataView);
+
+                secondVisualBuilder.updateRenderTimeout(dataView, () => {
+                    let firstWord = visualBuilder.mainElement.children("g").children("g.words").children("text.word").first();
+                    firstWord.d3Click(parseInt(firstWord.attr("x"), 10), parseInt(firstWord.attr("y"), 10));
+                    setTimeout(() => {
+                        let secondWord = secondVisualBuilder.mainElement.children("g").children("g.words").children("text.word").first();
+                        secondWord.d3Click(parseInt(secondWord.attr("x"), 10), parseInt(secondWord.attr("y"), 10));
+                        setTimeout(() => {
+                            expect(secondVisualBuilder.mainElement.children("g").children("g.words").children("text.word").length).toBe(
+                                visualBuilder.mainElement.children("g").children("g.words").children("text.word").length);
+                            done();
+                        });
+                    });
+                }, 100);
+            });
         });
     });
 
     class WordCloudBuilder extends VisualBuilderBase<VisualClass> {
-        constructor(height: number = 200, width: number = 300, isMinervaVisualPlugin: boolean = false) {
-            super(height, width, isMinervaVisualPlugin);
-            this.build();
-            this.init();
+        constructor(width: number, height: number, isMinervaVisualPlugin: boolean = false) {
+            super(width, height, isMinervaVisualPlugin);
+        }
+
+        protected build() {
+            return new VisualClass();
         }
 
         public get mainElement() {
             return this.element.children("svg.wordCloud");
-        }
-
-        private build(): void {
-            this.visual = new VisualClass();
         }
     }
 }

@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Power BI Visualizations
  *
  *  Copyright (c) Microsoft Corporation
@@ -32,7 +32,8 @@ module powerbi.visuals {
             general: {
                 properties: {
                     paragraphs: {
-                        type: { paragraphs: {} }
+                        type: { paragraphs: {} },
+                        suppressFormatPainterCopy: true,
                     }
                 }
             }

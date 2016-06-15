@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Power BI Visualizations
  *
  *  Copyright (c) Microsoft Corporation
@@ -28,6 +28,11 @@
 
 module powerbi.visuals {
     import createClassAndSelector = jsCommon.CssConstants.createClassAndSelector;
+    import createDataViewScopeIdentity = powerbi.data.createDataViewScopeIdentity;
+    import DataViewConcatenateCategoricalColumns = powerbi.data.DataViewConcatenateCategoricalColumns;
+    import DataViewMatrixUtils = powerbi.data.utils.DataViewMatrixUtils;
+    import SQExpr = powerbi.data.SQExpr;
+    import SQExprBuilder = powerbi.data.SQExprBuilder;
 
     export interface PlayConstructorOptions extends CartesianVisualConstructorOptions {
     }
@@ -40,12 +45,17 @@ module powerbi.visuals {
     };
 
     export interface PlayChartData<T extends PlayableChartData> {
-        frameKeys: string[];
+        frameData: PlayChartFrameData[];
         allViewModels: T[];
         currentViewModel: T;
         currentFrameIndex: number;
         labelData: PlayAxisTickLabelData;
     }
+    
+    export interface PlayChartFrameData {
+        escapedText: string;
+        text: string;
+    } 
 
     export interface PlayChartViewModel<TData extends PlayableChartData, TViewModel> {
         data: PlayChartData<TData>;
@@ -95,6 +105,16 @@ module powerbi.visuals {
     export interface ITraceLineRenderer {
         render(selectedPoints: SelectableDataPoint[], shouldAnimate: boolean): void;
         remove(): void;
+    }
+    
+    interface SliderSize {
+        width: number;
+        marginLeft: number;       
+    };
+    
+    interface SliderPipFilter {
+        skipStep: number;
+        filter: (index: any, type: any) => number;
     }
 
     export class PlayAxis<T extends PlayableChartData> {
@@ -197,31 +217,47 @@ module powerbi.visuals {
                 hasSelection = this.interactivityService.hasSelection();
             }
 
-            let frameKeys = playData.frameKeys;
+            this.updateCallout(viewport, margin);
+
+            if (this.playControl && resized) {
+                this.playControl.rebuild(playData, viewport);
+            }
+
+            let allDataPoints = playData.allViewModels.map((vm) => vm.dataPoints);
+            let flatAllDataPoints = _.flatten<SelectableDataPoint>(allDataPoints);
+            
+            // NOTE: Return data points to keep track of current selected bubble even if it drops out for a few frames
+            return {
+                allDataPoints: flatAllDataPoints,
+                viewModel: playViewModel,
+            };
+        }
+
+        private updateCallout(viewport: IViewport, margin: IMargin): void {
+            let playData = this.playData;
+            let frameData = playData.frameData;
             let currentFrameIndex = playData.currentFrameIndex;
             let height = viewport.height;
             let plotAreaHeight = height - margin.top - margin.bottom;
             let width = viewport.width;
             let plotAreaWidth = width - margin.left - margin.right;
 
-            if (this.playControl && resized) {
-                this.playControl.rebuild(playData, viewport);
-            }
-
-            // update callout to current frame index
             let calloutDimension = Math.min(height, width * 1.3); //1.3 to compensate for tall, narrow-width viewport
             let fontSize = Math.max(12, Math.round(calloutDimension / 7));
             fontSize = Math.min(fontSize, 70);
             let textProperties = {
-                fontSize: "" + fontSize,
-                text: frameKeys[currentFrameIndex] || "",
-                fontFamily: "Segoe UI",
+                fontSize: jsCommon.PixelConverter.toString(fontSize),
+                text: frameData[currentFrameIndex].text || "",
+                fontFamily: "wf_segoe-ui_normal",
             };
             let textHeight = TextMeasurementService.estimateSvgTextHeight(textProperties) - TextMeasurementService.estimateSvgTextBaselineDelta(textProperties);
 
-            let calloutData: string[] = [];;
-            if (currentFrameIndex < frameKeys.length && currentFrameIndex >= 0 && textHeight < plotAreaHeight)
-                calloutData = [TextMeasurementService.getTailoredTextOrDefault(textProperties, plotAreaWidth - (2 * PlayAxis.calloutOffsetMultiplier * textHeight))];
+            let calloutData: string[] = [];
+            if (currentFrameIndex < frameData.length && currentFrameIndex >= 0 && textHeight < plotAreaHeight) {
+                let maxTextWidth = plotAreaWidth - (2 * PlayAxis.calloutOffsetMultiplier * textHeight);
+                let calloutText = TextMeasurementService.getTailoredTextOrDefault(textProperties, maxTextWidth);
+                calloutData = [calloutText];
+            }
 
             let callout = this.svg.selectAll(PlayAxis.PlayCallout.selector).data(calloutData);
 
@@ -241,15 +277,6 @@ module powerbi.visuals {
                 });
 
             callout.exit().remove();
-
-            let allDataPoints = playData.allViewModels.map((vm) => vm.dataPoints);
-            let flatAllDataPoints = _.flatten<SelectableDataPoint>(allDataPoints);
-            
-            // NOTE: Return data points to keep track of current selected bubble even if it drops out for a few frames
-            return {
-                allDataPoints: flatAllDataPoints,
-                viewModel: playViewModel,
-            };
         }
 
         public play(): void {
@@ -350,6 +377,10 @@ module powerbi.visuals {
                 this.renderDelegate(data);
             }
         }
+
+        public isCurrentlyPlaying(): boolean {
+            return this.isPlaying;
+        }
     }
 
     class PlayControl {
@@ -365,7 +396,7 @@ module powerbi.visuals {
         private static SliderMarginRight = 20;
         private static SliderMaxMargin = 100;
         private static PlayControlHeight = 80; //tuned for two rows of label text to be perfectly clipped before the third row. Dependent on current font sizes in noui-pips.css
-    
+        
         constructor(element: JQuery, renderDelegate: (index: number) => void, isMobileChart: boolean) {
             this.isMobileChart = isMobileChart;
             this.createSliderDOM(element);
@@ -399,20 +430,131 @@ module powerbi.visuals {
             this.playButtonCircle.on('click', handler);
         }
 
-        private static calculateSliderWidth(labelData: PlayAxisTickLabelData, viewportWidth: number): number {
-            let leftMargin = 0, rightMargin = 0;
-            if (!_.isEmpty(labelData.labelInfo)) {
-                leftMargin = _.first(labelData.labelInfo).labelWidth / 2;
-                rightMargin = _.last(labelData.labelInfo).labelWidth / 2;
+        public setFrame(frameIndex: number): void {
+            this.noUiSlider.set([frameIndex]);
+        };
+
+        public rebuild<T extends PlayableChartData>(playData: PlayChartData<T>, viewport: IViewport): void {
+            let slider = this.slider;
+
+            // re-create the slider
+            if (this.noUiSlider)
+                this.noUiSlider.destroy();
+
+            let labelData = playData.labelData;
+            let sliderSize: SliderSize = PlayControl.calucalateSliderSize(labelData, viewport.width);
+            var container = this.getContainer();
+            if(sliderSize.marginLeft > PlayControl.SliderMarginLeft) {
+                container.css("padding-left", sliderSize.marginLeft - PlayControl.SliderMarginLeft + "px");
+                container.css("box-sizing", "border-box");    
+            }
+            let skipStep: number = this.updateSliderControl(playData, sliderSize.width);
+            let width: number = PlayControl.adjustWidthRegardingLastItem(labelData, skipStep, sliderSize.width);
+            this.slider.css('width', width + 'px');
+
+            this.noUiSlider.on('slide', () => {
+                let indexToShow = this.getCurrentIndex();
+                this.renderDelegate(indexToShow);
+            });
+             
+             let nextLabelIndex = 0;
+             // update the width and margin-left to center up each label
+            $('.noUi-value', slider).each((idx, elem) => {
+                let actualWidth = labelData.labelInfo[nextLabelIndex].labelWidth;
+                $(elem).width(actualWidth);
+                $(elem).css('margin-left', -actualWidth / 2 + 'px');
+                nextLabelIndex += skipStep;
+            });
+        }
+
+        /**
+         * Updates slider control regarding new data.
+         * @param playData {PlayChartData<T>} Data for the slider.
+         * @param sliderWidth {number} Slider width. 
+         * @returns {number} skip mode for the slider.
+         */
+        private updateSliderControl<T extends PlayableChartData>(playData: PlayChartData<T>, sliderWidth: number): number {
+            let labelData = playData.labelData;
+            let sliderElement: HTMLElement = this.slider.get(0);
+            let numFrames = playData.frameData.length;
+            let options: noUiSlider.Options = {
+                start: numFrames === 0 ? 0 : playData.currentFrameIndex,
+                step: 1,
+                range: {
+                    min: 0,
+                    max: numFrames === 0 ? 0 : numFrames - 1
+                }
+            };
+            let pipOptions: noUiSlider.PipsOptions = null;
+            let skipMode: number = 0;
+            
+            if (numFrames > 0) {
+                let filterPipLabels = PlayControl.createPipsFilterFn(playData, sliderWidth, labelData);
+                skipMode = filterPipLabels.skipStep;
+                pipOptions = {
+                    mode: 'steps',
+                    density: Math.ceil(100 / numFrames), //only draw ticks where we have labels
+                    format: {
+                        to: (index) => playData.frameData[index].escapedText,
+                        from: (value) => playData.frameData.indexOf(value),
+                    },
+                    filter: filterPipLabels.filter,
+                };
+            }
+            options.pips = pipOptions;
+            noUiSlider.create(sliderElement, options);
+            this.noUiSlider = (<noUiSlider.Instance>sliderElement).noUiSlider;
+
+            return skipMode;
+        }
+        
+        private static createPipsFilterFn<T extends PlayableChartData>(playData: PlayChartData<T>, sliderWidth: number, labelData: PlayAxisTickLabelData):  SliderPipFilter  {
+            let maxLabelWidth = _.max(_.map(labelData.labelInfo, (l) => l.labelWidth));
+
+            let pipSize = 1; //0=hide, 1=large, 2=small
+            let skipMode = 1;
+            let maxAllowedLabelWidth = playData.frameData.length > 1 ? sliderWidth / (playData.frameData.length - 1) : sliderWidth;
+            let widthRatio = maxLabelWidth / maxAllowedLabelWidth;
+
+            if (widthRatio > 1.25) {
+                skipMode = Math.ceil(widthRatio);
+                pipSize = 2;
+            }
+            else if (widthRatio > 1.0 || labelData.anyWordBreaks) {
+                // wordbreak line wrapping is automatic, and we don't reserve enough space to show two lines of text with the larger font
+                pipSize = 2;
             }
 
-            let sliderLeftMargin = Math.max(leftMargin, PlayControl.SliderMarginLeft);
-            let sliderRightMargin = Math.max(rightMargin, PlayControl.SliderMarginRight);
+            let filterPipLabels = (index: any, type: any) => {
+                // noUiSlider will word break / wrap to new lines, so max width is the max word length
+                if (index % skipMode === 0) {
+                    return pipSize;
+                }
+                return 0; //hide
+            };
             
-            sliderLeftMargin = Math.min(PlayControl.SliderMaxMargin, sliderLeftMargin);
-            sliderRightMargin = Math.min(PlayControl.SliderMaxMargin, sliderRightMargin);
-            
-            let sliderWidth = Math.max((viewportWidth - sliderLeftMargin - sliderRightMargin), 1);
+
+            return { filter: filterPipLabels, skipStep: skipMode };
+        }
+
+        /**
+         * Adjusts width regarding the last visible label size.
+         * @param labelData label data for chart.
+         * @param skipMode skip factor.
+         * @param sliderWidth current width of slider.
+         */
+        private static adjustWidthRegardingLastItem(labelData: PlayAxisTickLabelData, skipMode: number, sliderWidth): number {
+            let labelLenth: number = labelData.labelInfo.length;
+            let lastVisibleItemIndex: number = Math.floor((labelLenth - 1) / skipMode) * skipMode;
+            let distanceToEnd = sliderWidth + PlayControl.SliderMarginRight - (sliderWidth / labelLenth * (lastVisibleItemIndex + 1));
+            let lastItemWidth = labelData.labelInfo[lastVisibleItemIndex].labelWidth;
+            let requiredWidth = lastItemWidth / 2 - distanceToEnd;
+            if (requiredWidth > 0) {
+                let maxMargin = PlayControl.SliderMaxMargin - PlayControl.SliderMarginRight;
+                requiredWidth = requiredWidth > maxMargin ? maxMargin : requiredWidth;
+                return sliderWidth - requiredWidth;
+            }
+
             return sliderWidth;
         }
 
@@ -435,80 +577,18 @@ module powerbi.visuals {
                 .appendTo(this.playAxisContainer);
         }
 
-        public rebuild<T extends PlayableChartData>(playData: PlayChartData<T>, viewport: IViewport): void {
-            let slider = this.slider;
-
-            // re-create the slider
-            if (this.noUiSlider)
-                this.noUiSlider.destroy();
-
-            let sliderElement = <noUiSlider.Instance>this.slider.get(0);
-
-            let labelData = playData.labelData;
-            let sliderWidth = PlayControl.calculateSliderWidth(labelData, viewport.width);
-            this.slider.css('width', sliderWidth + 'px');
-
-            let numFrames = playData.frameKeys.length;
-            if (numFrames > 0) {
-                let filterPipLabels = PlayChart.createPipsFilterFn(playData, sliderWidth, labelData);
-                let lastIndex = numFrames - 1;
-                noUiSlider.create(
-                    sliderElement,
-                    {
-                        step: 1,
-                        start: [playData.currentFrameIndex],
-                        range: {
-                            min: [0],
-                            max: [lastIndex],
-                        },
-                        pips: {
-                            mode: 'steps',
-                            density: Math.round(100 / numFrames), //only draw ticks where we have labels
-                            format: {
-                                to: (index) => playData.frameKeys[index],
-                                from: (value) => playData.frameKeys.indexOf(value),
-                            },
-                            filter: filterPipLabels,
-                        },
-                    }
-                );
-            }
-            else {
-                noUiSlider.create(
-                    sliderElement,
-                    {
-                        step: 1,
-                        start: [0],
-                        range: {
-                            min: [0],
-                            max: [0],
-                        },
-                    });
+        private static calucalateSliderSize(labelData: PlayAxisTickLabelData, viewportWidth: number): SliderSize {
+            let leftMargin = 0;
+            if (!_.isEmpty(labelData.labelInfo)) {
+                leftMargin = _.first(labelData.labelInfo).labelWidth / 2;
             }
 
-            this.noUiSlider = sliderElement.noUiSlider;
+            let sliderLeftMargin = Math.max(leftMargin, PlayControl.SliderMarginLeft);
+            sliderLeftMargin = Math.min(PlayControl.SliderMaxMargin, sliderLeftMargin);
+            let sliderWidth = Math.max((viewportWidth - sliderLeftMargin - PlayControl.SliderMarginRight), 1);
 
-            this.noUiSlider.on('slide', () => {
-                let indexToShow = this.getCurrentIndex();
-                this.renderDelegate(indexToShow);
-            });
-
-            // update the width and margin-left to center up each label
-            $('.noUi-value', slider).each((idx, elem) => {
-                // TODO: better way to get the label info for an element?
-                let actualWidth = labelData.labelInfo.filter(l => l.label === $(elem).text())[0].labelWidth;
-                $(elem).width(actualWidth);
-                $(elem).css('margin-left', -actualWidth / 2 + 'px');
-            });
-
-            if (this.isMobileChart) {
-                $('.noUi-handle').addClass('mobile-noUi-handle');
-            }
+            return { width: sliderWidth, marginLeft: sliderLeftMargin };
         }
-
-        public setFrame(frameIndex: number): void {
-            this.noUiSlider.set([frameIndex]);
-        };
     }
 
     export module PlayChart {
@@ -520,7 +600,10 @@ module powerbi.visuals {
 
         export const ClassName = 'playChart';
 
-        export function convertMatrixToCategorical(matrix: DataViewMatrix, frame: number): DataViewCategorical {
+        export function convertMatrixToCategorical(sourceDataView: DataView, frame: number): DataView {
+            debug.assert(sourceDataView && sourceDataView.metadata && !!sourceDataView.matrix, 'sourceDataView && sourceDataView.metadata && !!sourceDataView.matrix');
+
+            let matrix: DataViewMatrix = sourceDataView.matrix;
 
             let categorical: DataViewCategorical = {
                 categories: [],
@@ -531,16 +614,27 @@ module powerbi.visuals {
             // 2 rows and 1 column:  (play->category, measures)
             // or:
             // 1 row and 2 columns:  (play, series->measures)
-            if ((_.isEmpty(matrix.columns.levels)) || (matrix.rows.levels.length < 2 && matrix.columns.levels.length < 2))
-                return categorical;
+            if ((_.isEmpty(matrix.columns.levels)) || (matrix.rows.levels.length < 2 && matrix.columns.levels.length < 2)) {
+                return { metadata: sourceDataView.metadata, categorical: categorical };
+            }
 
-            let category: DataViewCategoryColumn = {
-                // ignore the play field, we use either the second row group (play->category) or we don't use this variable (category)
-                source: matrix.rows.levels.length > 1 ? matrix.rows.levels[1].sources[0] : null,
-                values: [],
-                objects: undefined,
-                identity: []
-            };
+            const CategoryRowLevelsStartingIndex = 1;
+
+            let categories: DataViewCategoryColumn[] = [];
+            // Ignore the play field (first row level); the Category field(s) starts from the second row group (play->category) or we don't use this variable (categories)
+            // Note related to VSTS 6986788 and 6885783: there are multiple levels for category during drilldown and expand.
+            for (let i = CategoryRowLevelsStartingIndex, ilen = matrix.rows.levels.length; i < ilen; i++) {
+                // Consider: Change the following debug.assert() to retail.assert() when the infrastructure is ready.
+                debug.assert(matrix.rows.levels[i].sources.length > 0, 'The sources is always expected to contain at least one metadata column.');
+
+                let sourceColumn: DataViewMetadataColumn = matrix.rows.levels[i].sources[0];
+                categories.push({
+                    source: sourceColumn,
+                    values: [],
+                    identity: [],
+                    objects: undefined,
+                });
+            }
 
             // Matrix shape for Play:
             //
@@ -552,6 +646,18 @@ module powerbi.visuals {
             // Play2 | Category1 | values  | values
             //       | Category2 | values  | values
             // ...
+            // Or, with drilldown / expand on Category (e.g. expand Country -> Region):
+            //                             Series1 | Series2 | ...
+            //                           --------- --------  
+            // Play1 | Country1 | Region1 | values  | values
+            //       |          | Region2 | values  | values
+            //       | Country2 | Region3 | values  | values
+            //       |          | Region4 | values  | values
+            //       | ...
+            // Play2 | Country1 | Region1 | values  | values
+            //       |          | Region2 | values  | values
+            //       | Country2 | Region3 | values  | values
+            //       |          | Region4 | values  | values
 
             // we are guaranteed at least one row (it will be the Play field)
             let hasRowChildren = !_.isEmpty(matrix.rows.root.children);
@@ -581,24 +687,25 @@ module powerbi.visuals {
                     }
                 }
 
-                let innerValueNode = matrix.rows.root.children[frame];
-                for (let i = 0, len = node.children.length; i < len; i++) {
+                // Copying the values from matrix intersection to the categorical values columns...
+                // Given that this is the case without category levels, the matrix intersection values are stored in playFrameNode.values
+                let playFrameNode = matrix.rows.root.children[frame];
+                let matrixIntersectionValues = playFrameNode.values;
+                for (var i = 0, len = node.children.length; i < len; i++) {
                     for (let j = 0; j < columnLength; j++) {
-                        categorical.values[i * columnLength + j].values.push(innerValueNode.values[i * columnLength + j].value);
+                        categorical.values[i * columnLength + j].values.push(matrixIntersectionValues[i * columnLength + j].value);
                     }
                 }
             }
             else if (hasSeries && hasRowChildren) {
                 // series and categories
-                let node = matrix.rows.root.children[frame];
+                let playFrameNode = matrix.rows.root.children[frame];
                 
                 // create the categories first
-                for (let i = 0, len = node.children.length; i < len; i++) {
-                    let innerNode = node.children[i];
-                    category.identity.push(innerNode.identity);
-                    category.values.push(innerNode.value);
-                }
-                categorical.categories.push(category);
+                DataViewMatrixUtils.forEachLeafNode(playFrameNode.children, (categoryGroupLeafNode, index, categoryHierarchicalGroupNodes) => {
+                    addMatrixHierarchicalGroupToCategories(categoryHierarchicalGroupNodes, categories);
+                });
+                categorical.categories = categories;
 
                 // now add the series info
                 categorical.values.source = matrix.columns.levels[0].sources[0];
@@ -611,9 +718,9 @@ module powerbi.visuals {
                             // each of these is a "series"
                             nodeQueue.push(columnNode.children[j]);
                         }
-                    } else if (columnNode.children && node.children) {
+                    } else if (columnNode.children && playFrameNode.children) {
                         // Processing a single series under here, push all the value sources for every series.
-                        let columnLength = columnNode.children.length;
+                        var columnLength = columnNode.children.length;
                         for (let j = 0; j < columnLength; j++) {
                             let source = <any>_.create(matrix.valueSources[j], { groupName: columnNode.value });
                             let dataViewColumn: DataViewValueColumn = {
@@ -623,12 +730,13 @@ module powerbi.visuals {
                             };
                             categorical.values.push(dataViewColumn);
                         }
-                        for (let i = 0, len = node.children.length; i < len; i++) {
-                            let innerNode = node.children[i];
+
+                        // Copying the values from matrix intersection to the categorical values columns...
+                        DataViewMatrixUtils.forEachLeafNode(playFrameNode.children, leafNode => {
                             for (let j = 0; j < columnLength; j++) {
-                                categorical.values[seriesIndex * columnLength + j].values.push(innerNode.values[seriesIndex * columnLength + j].value);
+                                categorical.values[seriesIndex * columnLength + j].values.push(leafNode.values[seriesIndex * columnLength + j].value);
                             }
-                        }
+                        });
                     }
 
                     if (nodeQueue.length > 0) {
@@ -641,7 +749,7 @@ module powerbi.visuals {
             }
             else if (hasPlayAndCategory) {
                 // no series, just play and category
-                let node = matrix.rows.root.children[frame];
+                let playFrameNode = matrix.rows.root.children[frame];
                 let measureLength = matrix.valueSources.length;
                 for (let j = 0; j < measureLength; j++) {
                     let dataViewColumn: DataViewValueColumn = {
@@ -652,19 +760,52 @@ module powerbi.visuals {
                     categorical.values.push(dataViewColumn);
                 }
 
-                for (let i = 0, len = node.children.length; i < len; i++) {
-                    let innerNode = node.children[i];
-                    category.identity.push(innerNode.identity);
-                    category.values.push(innerNode.value);
+                DataViewMatrixUtils.forEachLeafNode(playFrameNode.children, (categoryGroupLeafNode, index, categoryHierarchicalGroupNodes) => {
+                    addMatrixHierarchicalGroupToCategories(categoryHierarchicalGroupNodes, categories);
 
+                    // Copying the values from matrix intersection to the categorical values columns...
                     for (let j = 0; j < measureLength; j++) {
-                        categorical.values[j].values.push(innerNode.values[j].value);
+                        categorical.values[j].values.push(categoryGroupLeafNode.values[j].value);
                     }
-                }
-                categorical.categories.push(category);
+                });
+
+                categorical.categories = categories;
             }
 
-            return categorical;
+            // the visual code today expects only 1 category column, hence apply DataViewConcatenateCategoricalColumns
+            return DataViewConcatenateCategoricalColumns.applyToPlayChartCategorical(sourceDataView.metadata, scatterChartCapabilities.objects, 'Category', categorical);
+        }
+
+        function addMatrixHierarchicalGroupToCategories(sourceCategoryHierarchicalGroupNodes: DataViewMatrixNode[], destinationCategories: DataViewCategoryColumn[]): void {
+            debug.assertNonEmpty(sourceCategoryHierarchicalGroupNodes, 'sourceCategoryHierarchicalGroupNodes');
+            debug.assertNonEmpty(destinationCategories, 'destinationCategories');
+            debug.assert(sourceCategoryHierarchicalGroupNodes.length === destinationCategories.length, 'pre-condition: there should be one category column per matrix row level for Category.');
+
+            // Note: Before the Categorical concatenation logic got added to this playChart logic, the code did NOT populate
+            // the ***DataViewCategoryColumn.identityFields*** property, and the playChart visual code does not seem to need it.
+            // If we do want to populate that property, we might want to do reuse data.ISQExpr[] across nodes as much as possible 
+            // because all the child nodes under a given parent will have the exact same identityFields value, and a lot of 
+            // DataViewCategory objects can get created for a given playChart.
+
+            let identity: DataViewScopeIdentity = sourceCategoryHierarchicalGroupNodes[0].identity;
+
+            if (sourceCategoryHierarchicalGroupNodes.length > 1) {
+                // if the hierarchical group has more than 1 level, create a composite identity from the nodes
+                let identityExpr = <SQExpr>identity.expr;
+                for (let i = 1, ilen = sourceCategoryHierarchicalGroupNodes.length; i < ilen; i++) {
+                    let identityExprToAdd = <SQExpr>sourceCategoryHierarchicalGroupNodes[i].identity.expr;
+                    identityExpr = SQExprBuilder.and(identityExpr, identityExprToAdd);
+                }
+                identity = createDataViewScopeIdentity(identityExpr);
+            }
+
+            // add the Category value of each matrix node into its respective category column
+            for (let j = 0, jlen = destinationCategories.length; j < jlen; j++) {
+                destinationCategories[j].identity.push(identity);
+
+                let node = sourceCategoryHierarchicalGroupNodes[j];
+                destinationCategories[j].values.push(node.value);
+            }
         }
 
         function getObjectProperties(dataViewMetadata: DataViewMetadata, dataLabelsSettings?: PointDataLabelsSettings): PlayObjectProperties {
@@ -678,25 +819,18 @@ module powerbi.visuals {
             return objectProperties;
         }
 
-        function buildDataViewForFrame(metadata: DataViewMetadata, categorical: DataViewCategorical): DataView {
-            return {
-                metadata: metadata,
-                categorical: categorical,
-            };
-        }
-
         export function converter<T extends PlayableChartData>(dataView: DataView, visualConverter: VisualDataConverterDelegate<T>): PlayChartData<T> {
             let dataViewMetadata: DataViewMetadata = dataView.metadata;
             let dataLabelsSettings = dataLabelUtils.getDefaultPointLabelSettings();
             let objectProperties = getObjectProperties(dataViewMetadata, dataLabelsSettings);
 
             let allViewModels: T[] = [];
-            let frameKeys: string[] = [];
+            let frameKeys: PlayChartFrameData[] = [];
             let convertedData: T = undefined;
             let matrixRows = dataView.matrix.rows;
             let rowChildrenLength = matrixRows.root.children ? matrixRows.root.children.length : 0;
             let keySourceColumn: DataViewMetadataColumn;
-            if (dataView.matrix && rowChildrenLength > 0) {
+            if (dataView.matrix && rowChildrenLength > 0 && !_.isEmpty(matrixRows.levels) && !_.isEmpty(matrixRows.levels[0].sources) ) {
                 keySourceColumn = matrixRows.levels[0].sources[0];
 
                 // TODO: this should probably defer to the visual which knows how to format the categories.
@@ -716,18 +850,20 @@ module powerbi.visuals {
 
                 for (let i = 0, len = rowChildrenLength; i < len; i++) {
                     let key = matrixRows.root.children[i];
-                    let frameLabel = keyFormatter.format(key.value);
-                    frameKeys.push(frameLabel);
-
-                    let dataViewCategorical = convertMatrixToCategorical(dataView.matrix, i);
-                    let frameInfo = { label: frameLabel, column: keySourceColumn };
-                    convertedData = visualConverter(buildDataViewForFrame(dataView.metadata, dataViewCategorical), frameInfo);
+                    let frameLabelText = keyFormatter.format(key.value);
+                    // escaped html
+                    let frameLabelHtml = $("<div/>").text(frameLabelText).html();
+                    frameKeys.push({ escapedText: frameLabelHtml, text: frameLabelText });
+                    
+                    let dataViewCategorical = convertMatrixToCategorical(dataView, i);
+                    let frameInfo = { label: frameLabelHtml, column: keySourceColumn };
+                    convertedData = visualConverter(dataViewCategorical, frameInfo);
                     allViewModels.push(convertedData);
                 }
             }
             else {
-                let dataViewCategorical = convertMatrixToCategorical(dataView.matrix, 0);
-                convertedData = visualConverter(buildDataViewForFrame(dataView.metadata, dataViewCategorical));
+                let dataViewCategorical = convertMatrixToCategorical(dataView, 0);
+                convertedData = visualConverter(dataViewCategorical);
                 allViewModels.push(convertedData);
             }
             
@@ -737,7 +873,7 @@ module powerbi.visuals {
             return {
                 allViewModels: allViewModels,
                 currentViewModel: convertedData,
-                frameKeys: frameKeys,
+                frameData: frameKeys,
                 currentFrameIndex: objectProperties.currentFrameIndex,
                 labelData: getLabelData(frameKeys, keySourceColumn),
             };
@@ -745,7 +881,7 @@ module powerbi.visuals {
 
         export function getDefaultPlayData<T extends PlayableChartData>(): PlayChartData<T> {
             let defaultData: PlayChartData<T> = {
-                frameKeys: [],
+                frameData: [],
                 allViewModels: [],
                 currentFrameIndex: 0,
                 currentViewModel: undefined,
@@ -785,7 +921,7 @@ module powerbi.visuals {
             return extents;
         }
 
-        function getLabelData(keys: string[], keyColumn?: DataViewMetadataColumn): PlayAxisTickLabelData {
+        function getLabelData(keys: PlayChartFrameData[], keyColumn?: DataViewMetadataColumn): PlayAxisTickLabelData {
             let textProperties: TextProperties = {
                 fontFamily: 'wf_segoe-ui_normal',
                 fontSize: jsCommon.PixelConverter.toString(14),
@@ -794,9 +930,10 @@ module powerbi.visuals {
             let labelInfo: PlayAxisTickLabelInfo[] = [];
             let anyWordBreaks = false;
             for (let key of keys) {
-                let labelWidth = jsCommon.WordBreaker.getMaxWordWidth(key, TextMeasurementService.measureSvgTextWidth, textProperties);
-                anyWordBreaks = anyWordBreaks || jsCommon.WordBreaker.hasBreakers(key) || (key).indexOf('-') > -1;  // TODO: Why isn't this last part included in hasBreakers()?
-                labelInfo.push({ label: key, labelWidth });
+                let labelWidth = jsCommon.WordBreaker.getMaxWordWidth(key.escapedText, TextMeasurementService.measureSvgTextWidth, textProperties);
+                // TODO: Why isn't this last part included in hasBreakers()?
+                anyWordBreaks = anyWordBreaks || jsCommon.WordBreaker.hasBreakers(key.escapedText) || (key.escapedText).indexOf('-') > -1;  
+                labelInfo.push({ label: key.escapedText, labelWidth });
             }
 
             return {
@@ -806,45 +943,18 @@ module powerbi.visuals {
             };
         }
 
-        export function createPipsFilterFn<T extends PlayableChartData>(playData: PlayChartData<T>, sliderWidth: number, labelData: PlayAxisTickLabelData): (index: any, type: any) => number {
-            let maxLabelWidth = _.max(_.map(labelData.labelInfo, (l) => l.labelWidth));
-
-            let pipSize = 1; //0=hide, 1=large, 2=small
-            let skipMod = 1;
-            let maxAllowedLabelWidth = playData.frameKeys.length > 1 ? sliderWidth / (playData.frameKeys.length - 1) : sliderWidth;
-            let widthRatio = maxLabelWidth / maxAllowedLabelWidth;
-
-            if (widthRatio > 1.25) {
-                skipMod = Math.ceil(widthRatio);
-                pipSize = 2;
-            }
-            else if (widthRatio > 1.0 || labelData.anyWordBreaks) {
-                // wordbreak line wrapping is automatic, and we don't reserve enough space to show two lines of text with the larger font
-                pipSize = 2;
-            }
-
-            let filterPipLabels = (index: any, type: any) => {
-                // noUiSlider will word break / wrap to new lines, so max width is the max word length
-                if (index % skipMod === 0) {
-                    return pipSize;
-                }
-                return 0; //hide
-            };
-
-            return filterPipLabels;
-        }
-
         export function isDataViewPlayable(dataView: DataView, playRole: string = 'Play'): boolean {
             debug.assertValue(dataView, 'dataView');
 
-            let categoryRoleIsPlay = dataView.categorical
-                && dataView.categorical.categories
-                && dataView.categorical.categories[0]
-                && dataView.categorical.categories[0].source
-                && dataView.categorical.categories[0].source.roles
-                && dataView.categorical.categories[0].source.roles[playRole];
+            let firstRowSourceRoles = dataView.matrix &&
+                dataView.matrix.rows &&
+                dataView.matrix.rows.levels &&
+                dataView.matrix.rows.levels[0] &&
+                dataView.matrix.rows.levels[0].sources &&
+                dataView.matrix.rows.levels[0].sources[0] &&
+                dataView.matrix.rows.levels[0].sources[0].roles;
 
-            return (dataView.matrix && (!dataView.categorical || categoryRoleIsPlay));
+            return firstRowSourceRoles && firstRowSourceRoles[playRole];
         }
 
         /** Render trace-lines for selected data points. */

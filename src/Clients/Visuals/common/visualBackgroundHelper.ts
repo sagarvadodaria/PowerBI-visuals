@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Power BI Visualizations
  *
  *  Copyright (c) Microsoft Corporation
@@ -42,7 +42,7 @@ module powerbi.visuals {
         }
 
         export function getDefaultShow(): boolean {
-            return true;
+            return false;
         }
 
         export function getDefaultValues() {
@@ -53,11 +53,7 @@ module powerbi.visuals {
             };
         }
 
-        export function enumeratePlot(enumeration: ObjectEnumerationBuilder, background: VisualBackground, backgroundImageEnabled: boolean): void {
-            // featureSwitch
-            if (!backgroundImageEnabled)
-                return;
-
+        export function enumeratePlot(enumeration: ObjectEnumerationBuilder, background: VisualBackground): void {
             let transparency = (background && background.transparency);
             if (transparency == null)
                 transparency = getDefaultTransparency();

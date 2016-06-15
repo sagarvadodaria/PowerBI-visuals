@@ -2,7 +2,7 @@
  *  Power BI Visualizations
  *
  *  Copyright (c) Microsoft Corporation
- *  All rights reserved. 
+ *  All rights reserved.
  *  MIT License
  *
  *  Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -11,20 +11,20 @@
  *  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
  *  copies of the Software, and to permit persons to whom the Software is
  *  furnished to do so, subject to the following conditions:
- *   
- *  The above copyright notice and this permission notice shall be included in 
+ *
+ *  The above copyright notice and this permission notice shall be included in
  *  all copies or substantial portions of the Software.
- *   
- *  THE SOFTWARE IS PROVIDED *AS IS*, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
- *  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
- *  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE 
- *  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER 
+ *
+ *  THE SOFTWARE IS PROVIDED *AS IS*, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ *  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ *  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ *  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
  *  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  *  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  *  THE SOFTWARE.
  */
 
-
+/// <reference path="../_references.ts"/>
 
 module powerbitests {
     import Card = powerbi.visuals.Card;
@@ -110,8 +110,6 @@ module powerbitests {
 
         let dataViewMetadata: powerbi.DataViewMetadata = {
             columns: [{ displayName: "col1", isMeasure: true, objects: { "general": { formatString: "#0" } } }],
-            groups: [],
-            measures: [0],
             objects: {
                 labels: {
                     color: { solid: { color: "#222222" } },
@@ -147,8 +145,6 @@ module powerbitests {
         it("changed title", () => {
             let metadata: powerbi.DataViewMetadata = {
                 columns: [{ displayName: "col1", isMeasure: true, objects: { "general": { formatString: "#0" } } }],
-                groups: [],
-                measures: [0],
                 objects: {
                     categoryLabels: {
                         show: false
@@ -188,7 +184,7 @@ module powerbitests {
 
             // Default values
             color = color ? color : Card.DefaultStyle.value.color;
-            
+
             // The default value for precision is undefined but in enumerateObject it is null
             precision = precision !== undefined ? precision : null;
             displayUnits = displayUnits ? displayUnits : defaultLabelSettings.displayUnits;
@@ -205,20 +201,14 @@ module powerbitests {
 
         let dataViewMetadata: powerbi.DataViewMetadata = {
             columns: [{ displayName: "col1", isMeasure: true, objects: { "general": { formatString: "#0" } } }],
-            groups: [],
-            measures: [0],
         };
 
         let dataViewMetadataDecimalFormatString: powerbi.DataViewMetadata = {
             columns: [{ displayName: "col1", isMeasure: true, objects: { "general": { formatString: "#,0.00" } } }],
-            groups: [],
-            measures: [0],
         };
 
         let dataViewmetadataWithLabelProperties: powerbi.DataViewMetadata = {
             columns: [{ displayName: "col1", isMeasure: true, objects: { "general": { formatString: "#0" } } }],
-            groups: [],
-            measures: [0],
             objects: {
                 labels: {
                     color: { solid: { color: "#222222" } },
@@ -464,8 +454,6 @@ module powerbitests {
 
             let metadata: powerbi.DataViewMetadata = {
                 columns: [{ displayName: "col1", isMeasure: true, objects: { "general": { formatString: "#0" } } }],
-                groups: [],
-                measures: [0],
                 objects: {
                     categoryLabels: {
                         show: true
@@ -491,8 +479,6 @@ module powerbitests {
 
             let metadata: powerbi.DataViewMetadata = {
                 columns: [{ displayName: "col1", isMeasure: true, objects: { "general": { formatString: "#0" } } }],
-                groups: [],
-                measures: [0],
                 objects: {
                     categoryLabels: {
                         show: false
@@ -516,8 +502,6 @@ module powerbitests {
 
             let metadata: powerbi.DataViewMetadata = {
                 columns: [{ displayName: "col1", isMeasure: true, objects: { "general": { formatString: "#0" } } }],
-                groups: [],
-                measures: [0],
                 objects: {
                     categoryLabels: {
                         show: true
@@ -539,8 +523,6 @@ module powerbitests {
 
             let metadata: powerbi.DataViewMetadata = {
                 columns: [{ displayName: "col1", isMeasure: true, objects: { "general": { formatString: "#0" } } }],
-                groups: [],
-                measures: [0],
                 objects: {
                     categoryLabels: {
                         show: true
@@ -563,8 +545,6 @@ module powerbitests {
 
             let metadata: powerbi.DataViewMetadata = {
                 columns: [{ displayName: "column1", isMeasure: true, objects: { "general": { formatString: "#0" } } }],
-                groups: [],
-                measures: [0],
                 objects: {
                     categoryLabels: {
                         show: true
@@ -588,8 +568,6 @@ module powerbitests {
                 columns: [{
                     displayName: "This is a very long card label for testing", isMeasure: true, objects: { "general": { formatString: "#" } }
                 }],
-                groups: [],
-                measures: [0],
                 objects: {
                     categoryLabels: {
                         show: true
@@ -627,8 +605,6 @@ module powerbitests {
 
             let metadata: powerbi.DataViewMetadata = {
                 columns: [{ displayName: "col1", isMeasure: true, objects: { "general": { formatString: "#0" } } }],
-                groups: [],
-                measures: [0],
                 objects: {
                     labels: {
                         labelPrecision: 3,
@@ -641,7 +617,7 @@ module powerbitests {
             };
 
             cardBuilder.metadata = metadata;
-            cardBuilder.singleValue = "7";
+            cardBuilder.singleValue = 7;
 
             cardBuilder.onDataChanged();
 
@@ -699,8 +675,6 @@ module powerbitests {
 
             let metadataWithDisplayUnits: powerbi.DataViewMetadata = {
                 columns: [{ displayName: "col1", isMeasure: true, objects: { "general": { formatString: "#0" } } }],
-                groups: [],
-                measures: [0],
                 objects: {
                     labels: {
                         labelDisplayUnits: 1000
@@ -712,14 +686,14 @@ module powerbitests {
             };
 
             cardBuilder.metadata = metadataWithDisplayUnits;
-            cardBuilder.singleValue = "9999";
+            cardBuilder.singleValue = 9999;
 
             cardBuilder.onDataChanged();
 
             setTimeout(() => {
                 expect(helpers.findElementText($(".card .value").first())).toBe("10K");
                 expect(helpers.findElementTitle($(".card .value").first())).toBe("10K");
-                
+
                 //display unit auto
                 cardBuilder.metadata = dataViewMetadata;
 
@@ -740,8 +714,6 @@ module powerbitests {
                     isMeasure: true,
                     objects: { 'general': { formatString: '#0' } }
                 }],
-                groups: [],
-                measures: [0],
                 objects: {
                     labels: {
                         show: true
@@ -758,7 +730,7 @@ module powerbitests {
 
             cardBuilder.onResizing(1000, 200);
 
-            setTimeout(() => {    
+            setTimeout(() => {
                 // No word wrapping, category label should be cut
                 expect($('.card .label')[0].textContent).toContain('…');
                 expect($('.card .label tspan').length).toBe(0);
@@ -777,9 +749,9 @@ module powerbitests {
 
                 // Word wrapping is on, category label should be visible is several lines
                 let tspans = $('.card .label tspan');
-                
+
                 // To prevent this test from being fragile, we will only assert that there is more than 1
-                // tspan being created so the category label is split across several lines. 
+                // tspan being created so the category label is split across several lines.
                 expect(tspans.length).toBeGreaterThan(1);
                 done();
             }, DefaultWaitForRender);
@@ -794,8 +766,6 @@ module powerbitests {
                     isMeasure: true,
                     objects: { 'general': { formatString: '#0' } }
                 }],
-                groups: [],
-                measures: [0],
                 objects: {
                     labels: {
                         show: true
@@ -818,6 +788,41 @@ module powerbitests {
 
             expect(spy.calls.count()).toBe(0);
         });
+
+        it("does not change string values", (done) => {
+            cardBuilder = new CardBuilder(null, true);
+
+            let metadataWithDisplayUnits: powerbi.DataViewMetadata = {
+                columns: [{ displayName: "col1", isMeasure: true }],
+                objects: {
+                    labels: {
+                        labelDisplayUnits: 1000
+                    },
+                    categoryLabels: {
+                        show: true
+                    }
+                }
+            };
+
+            cardBuilder.metadata = metadataWithDisplayUnits;
+            cardBuilder.singleValue = "$9,999";
+
+            cardBuilder.onDataChanged();
+
+            setTimeout(() => {
+                expect(helpers.findElementText($(".card .value").first())).toBe("$9,999");
+                expect(helpers.findElementTitle($(".card .value").first())).toBe("$9,999");
+
+                //display unit auto
+                cardBuilder.metadata = dataViewMetadata;
+
+                cardBuilder.onDataChanged();
+
+                expect(helpers.findElementText($(".card .value").first())).toBe("$9,999");
+                expect(helpers.findElementTitle($(".card .value").first())).toBe("$9,999");
+                done();
+            }, DefaultWaitForRender);
+        });
     });
 
     describe("Card tests on Minerva", () => {
@@ -825,8 +830,6 @@ module powerbitests {
 
         let dataViewMetadata: powerbi.DataViewMetadata = {
             columns: [{ displayName: "col1", isMeasure: true, objects: { "general": { formatString: "#0" } } }],
-            groups: [],
-            measures: [0],
         };
 
         let labelStyles = Card.DefaultStyle.label;
@@ -929,6 +932,39 @@ module powerbitests {
             }, DefaultWaitForRender);
         });
 
+        it("Card with KPI value on canvas change font size", (done) => {
+            cardBuilder.metadata = {
+                columns: [
+                    {
+                        displayName: 'kpi name',
+                        format: 'g',
+                        kpi: {
+                            graphic: 'Five Bars Colored'
+                        },
+                        isMeasure: true
+                    }
+                ],
+                objects: {
+                    labels: {
+                        fontSize: 14
+                    },
+                }
+            };
+
+            cardBuilder.singleValue = 2;
+
+            cardBuilder.onDataChanged();
+
+            setTimeout(() => {
+                expect($(".g text").length).toBe(0);
+                let kpi = $(".caption .powervisuals-glyph");
+                expect(kpi.length).toBe(1);
+                expect(kpi.get(0).classList).toContain('big-kpi');
+                expect(kpi.css('font-size')).toBe('19px');
+                done();
+            }, DefaultWaitForRender);
+        });
+
         it("Card with zero currency value", (done) => {
             let dataViewMetadata: powerbi.DataViewMetadata = {
                 columns: [
@@ -1007,8 +1043,6 @@ module powerbitests {
         it("card with longer label and value", (done) => {
             let dataViewMetadata: powerbi.DataViewMetadata = {
                 columns: [{ displayName: "this is the value that never ends, it just goes on and on my friends. Some axis started rendering it not knowing what it was, and now it keeps on rendering forever just because this the label that never ends", isMeasure: true, format: "#0" }],
-                groups: [],
-                measures: [0],
             };
 
             cardBuilder.metadata = dataViewMetadata;
@@ -1017,7 +1051,7 @@ module powerbitests {
             cardBuilder.onDataChanged();
 
             setTimeout(() => {
-                
+
                 // Note: the exact text will be different depending on the environment in which the test is run, so we can"t do an exact match.
                 // Just check that the text is truncated with ellipses.
                 let labelText = helpers.findElementText($(".label").first());
@@ -1091,8 +1125,10 @@ module powerbitests {
         }
 
         private buildMinervaCard(): void {
-            this.cardVisual =
-            <Card>powerbi.visuals.visualPluginFactory.createMinerva({}).getPlugin("card").create();
+            this.cardVisual = new Card({
+                isScrollable: true,
+                animator: new powerbi.visuals.BaseAnimator()
+            });
         }
 
         private buildPlainCard(): void {
@@ -1111,11 +1147,7 @@ module powerbitests {
                     height: this.element.height(),
                     width: this.element.width()
                 },
-                animation: { transitionImmediate: true },
-                isScrollable: this.isScrollable,
-                settings: {
-                    DisplayUnitSystemType: this.displayUnitSystemType
-                }
+                animation: { transitionImmediate: true }
             });
         }
 

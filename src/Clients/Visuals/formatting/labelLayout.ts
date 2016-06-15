@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Power BI Visualizations
  *
  *  Copyright (c) Microsoft Corporation
@@ -188,6 +188,9 @@ module powerbi {
         /** Text to be displayed in the label */
         text: string;
 
+        /** A text that represent the label tooltip */
+        tooltip?: string;
+
         /** Color to use for the data label if drawn inside */
         insideFill: string;
 
@@ -253,6 +256,9 @@ module powerbi {
 
         /** Whether or not the label has a background (and text position needs to be adjusted to take that into account) */
         hasBackground: boolean;
+
+        /** A text that represent the label tooltip */
+        tooltip?: string;
     }
 
     export interface GridSubsection {
@@ -648,6 +654,7 @@ module powerbi {
                     return {
                         boundingBox: resultingBoundingBox,
                         text: labelPoint.text,
+                        tooltip: labelPoint.tooltip,
                         isVisible: true,
                         fill: isPositionInside ? labelPoint.insideFill : labelPoint.outsideFill,
                         identity: labelPoint.identity,
@@ -721,6 +728,7 @@ module powerbi {
                     return {
                         boundingBox: resultingBoundingBox,
                         text: labelPoint.text,
+                        tooltip: labelPoint.tooltip,
                         isVisible: true,
                         fill: position === NewPointLabelPosition.Center ? labelPoint.insideFill : labelPoint.outsideFill, // If we ever support "inside" for point-based labels, this needs to be updated
                         isInsideParent: position === NewPointLabelPosition.Center,

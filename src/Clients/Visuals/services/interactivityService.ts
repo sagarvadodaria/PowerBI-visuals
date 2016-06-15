@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Power BI Visualizations
  *
  *  Copyright (c) Microsoft Corporation
@@ -114,6 +114,9 @@ module powerbi.visuals {
     export interface ISelectionHandler {
         /** Handles a selection event by selecting the given data point */
         handleSelection(dataPoint: SelectableDataPoint, multiSelect: boolean): void;
+
+        /** Handles a request for a context menu. */
+        handleContextMenu(dataPoint: SelectableDataPoint, position: IPoint): void;
 
         /** Handles a selection clear, clearing all selection state */
         handleClearSelection(): void;
@@ -247,10 +250,20 @@ module powerbi.visuals {
         // ISelectionHandler Implementation
 
         public handleSelection(dataPoint: SelectableDataPoint, multiSelect: boolean): void {
+            // defect 7067397: should not happen so assert but also don't continue as it's
+            // causing a lot of error telemetry in desktop.
+            debug.assertValue(dataPoint, 'dataPoint');
+            if (!dataPoint)
+                return;
+
             this.useDefaultValue = false;
             this.select(dataPoint, multiSelect);
             this.sendSelectionToHost();
             this.renderAll();
+        }
+
+        public handleContextMenu(dataPoint: SelectableDataPoint, point: IPoint): void {
+            this.sendContextMenuToHost(dataPoint, point);
         }
 
         public handleClearSelection(): void {
@@ -315,6 +328,12 @@ module powerbi.visuals {
                 if (selected) {
                     d.selected = true;
                     this.selectedIds.push(id);
+                    if (id.hasIdentity()) {
+                        this.removeSelectionIdsWithOnlyMeasures();
+                    }
+                    else {
+                        this.removeSelectionIdsExceptOnlyMeasures();
+                    }
                 }
                 else {
                     d.selected = false;
@@ -341,10 +360,18 @@ module powerbi.visuals {
             // the current datapoint state has to be inverted
             d.selected = !wasSelected;
 
-            if (wasSelected)
+            if (wasSelected) {
                 this.removeId(id);
-            else              
+            }
+            else {
                 this.selectedIds.push(id);
+                if (id.hasIdentity()) {
+                    this.removeSelectionIdsWithOnlyMeasures();
+                }
+                else {
+                    this.removeSelectionIdsExceptOnlyMeasures();
+                }
+            }
 
             this.syncSelectionStateInverted();
         }
@@ -401,6 +428,23 @@ module powerbi.visuals {
             }
         }
 
+        private sendContextMenuToHost(dataPoint: SelectableDataPoint, position: IPoint): void {
+            let host = this.hostService;
+            if (!host.onContextMenu)
+                return;
+
+            let selectors = this.getSelectorsByColumn([dataPoint.identity]);
+            if (_.isEmpty(selectors))
+                return;
+
+            let args: ContextMenuArgs = {
+                data: selectors,
+                position: position
+            };
+
+            host.onContextMenu(args);
+        }
+
         private sendSelectionToHost() {
             let host = this.hostService;
             if (host.onSelect) {
@@ -408,13 +452,21 @@ module powerbi.visuals {
                     data: this.selectedIds.filter((value: SelectionId) => value.hasIdentity()).map((value: SelectionId) => value.getSelector())
                 };
 
-                let data2: SelectorsByColumn[] = this.selectedIds.filter((value: SelectionId) => value.getSelectorsByColumn() && value.hasIdentity()).map((value: SelectionId) => value.getSelectorsByColumn());
+                let data2 = this.getSelectorsByColumn(this.selectedIds);
 
-                if (data2 && data2.length > 0)
+                if (!_.isEmpty(data2))
                     selectArgs.data2 = data2;
 
                 host.onSelect(selectArgs);
             }
+        }
+
+        private getSelectorsByColumn(selectionIds: SelectionId[]): SelectorsByColumn[] {
+            return _(selectionIds)
+                .filter(value => value.hasIdentity)
+                .map(value => value.getSelectorsByColumn())
+                .compact()
+                .value();
         }
 
         private takeSelectionStateFromDataPoints(dataPoints: SelectableDataPoint[]): void {
@@ -541,6 +593,14 @@ module powerbi.visuals {
 
         private static checkDatapointAgainstSelectedIds(datapoint: SelectableDataPoint, selectedIds: SelectionId[]): boolean {
             return selectedIds.some((value: SelectionId) => value.includes(datapoint.identity));
+        }
+
+        private removeSelectionIdsWithOnlyMeasures() {
+            this.selectedIds = _.filter(this.selectedIds, (identity) => identity.hasIdentity());
+        }
+
+        private removeSelectionIdsExceptOnlyMeasures() {
+            this.selectedIds = _.filter(this.selectedIds, (identity) => !identity.hasIdentity());
         }
     };
 }

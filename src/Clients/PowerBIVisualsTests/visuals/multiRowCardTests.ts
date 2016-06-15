@@ -24,7 +24,7 @@
  *  THE SOFTWARE.
  */
 
-
+/// <reference path="../_references.ts"/>
 
 module powerbitests {
     import MultiRowCard = powerbi.visuals.MultiRowCard;
@@ -212,17 +212,36 @@ module powerbitests {
         it("FormatString property should match calculated", () => {
             expect(powerbi.data.DataViewObjectDescriptors.findFormatString(multiRowCardCapabilities.objects)).toEqual(MultiRowCard.formatStringProp);
         });
+        
+        it('Sortable roles', () => {
+            let items: powerbi.data.CompiledDataViewRoleItem[] = [];
+            let dataViewMapping: powerbi.data.CompiledDataViewMapping = {
+                metadata: {},
+                table: {
+                    rows: {
+                        for: {
+                            in: {
+                                role: 'Values',
+                                items: items
+                            }
+                        }
+                    }
+                }
+            };      
+
+            expect(MultiRowCard.getSortableRoles({
+                dataViewMappings: [dataViewMapping]
+            })).toEqual(['Values']);
+        });
 
         describe('enumerateObjectInstances', () => {
             let visual: MultiRowCard;
 
-            let defaultLabelSettings = powerbi.visuals.dataLabelUtils.getDefaultLabelSettings(true, "#767676", 13);
-
             beforeEach(() => {
-                let element = helpers.testDom("200", "300")
+                let element = helpers.testDom("200", "300");
                 visual = <MultiRowCard>powerbi.visuals.visualPluginFactory.create().getPlugin("multiRowCard").create();
                 visual.init(getVisualInitOptions(element));
-            })
+            });
 
             it('after no dataview should return default values', () => {
                 // We guarantee onDataChanged, but not with a valid data view.
@@ -249,7 +268,7 @@ module powerbitests {
                         selector: undefined,
                         properties: {
                             show: true,
-                            color: '#333333',
+                            color: '#ACACAC',
                             fontSize: 9
                         },
                     }]
@@ -289,7 +308,7 @@ module powerbitests {
                         selector: undefined,
                         properties: {
                             show: true,
-                            color: '#333333',
+                            color: '#ACACAC',
                             fontSize: 9
                         },
                     }]
@@ -304,8 +323,8 @@ module powerbitests {
 
             beforeEach(() => {
                 v = <MultiRowCard>powerbi.visuals.visualPluginFactory.create().getPlugin("multiRowCard").create();
-                element = helpers.testDom("200", "300")
-                visualInitOptions = getVisualInitOptions(element)
+                element = helpers.testDom("200", "300");
+                visualInitOptions = getVisualInitOptions(element);
                 v.init(visualInitOptions);
             });
 
@@ -425,7 +444,7 @@ module powerbitests {
                 });
             });
 
-            xit("Validate multiRowCard DOM with Title", () => {
+            it("Validate multiRowCard DOM with Title", () => {
                 helpers.runWithImmediateAnimationFrames(() => {
                     fireOnDataChanged(v, { dataViews: [dataWithTitle] });
 
@@ -625,6 +644,28 @@ module powerbitests {
                 });
             });
 
+            it("Validate that multiRowCard displays KPI with label size", () => {
+                let dataLabelsData = $.extend(true, {}, dataWithKPI);
+                dataLabelsData.metadata.objects = {
+                    dataLabels: {
+                        show: true,
+                        fontSize: 12, // 16px
+                        color: { solid: { color: '#123456' } }, //rgb(18, 52, 86)
+                    }
+                };
+
+                helpers.runWithImmediateAnimationFrames(() => {
+                    fireOnDataChanged(v, { dataViews: [dataLabelsData] });
+                    
+                    let caption = $('.card .caption');
+                    expect(caption).toBeInDOM();
+                    expect(caption.find('div')).toBeInDOM(); // kpi glyph
+                    expect(caption.css('font-size')).toBe('16px');
+                    expect(caption.css('color')).not.toBe('rgb(18, 52, 86)'); // color for kpi is not set through metadata objects currently
+                    expect($(".caption div").hasClass('bars-stacked bars-four')).toBeTruthy();
+                });
+            });
+
             it("Validate multiRowCard last card styling on dashboard", () => {
                 let options = getVisualInitOptions(element = helpers.testDom("400", "400"));
 
@@ -640,7 +681,7 @@ module powerbitests {
 
                     expect(cardItemBottomBorderWidth).toEqual(0);
                     expect(cardItemBottomPadding).toEqual(0);
-                    expect(cardItemTopPadding).toEqual(5);
+                    expect(cardItemTopPadding).toEqual(0);
                 });
             });
 
@@ -649,19 +690,19 @@ module powerbitests {
                 helpers.runWithImmediateAnimationFrames(() => {
                     fireOnDataChanged(v, { dataViews: [singleRowdata] });
 
-                    let cardBottomMargin = parseInt(element.find(".card").last().css("margin-bottom"), 10);
+                    let cardBottomMargin = parseInt(element.find(".row").last().css("margin-bottom"), 10);
                     expect(cardBottomMargin).toEqual(0);
 
                     helpers.runWithImmediateAnimationFrames(() => {
                         fireOnDataChanged(v, { dataViews: [dataWithTitle] });
 
-                        cardBottomMargin = parseInt(element.find(".card").last().css("margin-bottom"), 10);
+                        cardBottomMargin = parseInt(element.find(".row").last().css("margin-bottom"), 10);
                         expect(cardBottomMargin).toEqual(20);
 
                         helpers.runWithImmediateAnimationFrames(() => {
                             fireOnDataChanged(v, { dataViews: [data] });
 
-                            cardBottomMargin = parseInt(element.find(".card").last().css("margin-bottom"), 10);
+                            cardBottomMargin = parseInt(element.find(".row").last().css("margin-bottom"), 10);
                             expect(cardBottomMargin).toEqual(20);
                         });
                     });
@@ -682,13 +723,13 @@ module powerbitests {
                     let cardItemTopPadding = parseInt(element.find(".card").first().css("padding-top"), 10);
 
                     expect($(".card .title")).not.toBeInDOM();
-                    expect(cardItemBottomBorderWidth).toEqual(1);
-                    expect(cardItemBottomPadding).toEqual(5);
-                    expect(cardItemTopPadding).toEqual(5);
+                    expect(cardItemBottomBorderWidth).toEqual(0);
+                    expect(cardItemBottomPadding).toEqual(0);
+                    expect(cardItemTopPadding).toEqual(0);
                     expect($('.card .caption').first().css('font-size')).toBe('13px');
                     expect($('.card .details').first().css('font-size')).toBe('12px');
                     helpers.assertColorsMatch($('.card .caption').first().css('color'), '#333333');
-                    helpers.assertColorsMatch($('.card .details').first().css('color'), '#333333');
+                    helpers.assertColorsMatch($('.card .details').first().css('color'), '#ACACAC');
                 });
             });
 
@@ -708,7 +749,7 @@ module powerbitests {
                     expect($('.card .caption').first().css('font-size')).toBe('13px');
                     expect($('.card .details').first().css('font-size')).toBe('12px');
                     helpers.assertColorsMatch($('.card .caption').first().css('color'), '#333333');
-                    helpers.assertColorsMatch($('.card .details').first().css('color'), '#333333');
+                    helpers.assertColorsMatch($('.card .details').first().css('color'), '#ACACAC');
                 });
             });
 
@@ -734,13 +775,13 @@ module powerbitests {
                     expect($(".card")).toBeInDOM();
                     expect($(".card .cardItemContainer")).toBeInDOM();
 
-                    expect($(".card").length).toBe(3);
+                    expect($(".card").length).toBe(4);
                     expect($(".card:first>*:visible").length).toBe(1);
                     expect($(".card:first>*:visible").text()).not.toEqual('');
                 });
             });
 
-            xit("Verify number of cards and card items in smallTile ", () => {
+            it("Verify number of cards and card items in smallTile ", () => {
                 let options = getVisualInitOptions(helpers.testDom("150", "230"));
 
                 options.interactivity = { overflow: "hidden" };
@@ -752,12 +793,12 @@ module powerbitests {
                     expect($(".card")).toBeInDOM();
                     expect($(".card .cardItemContainer")).toBeInDOM();
 
-                    expect($(".card").length).toBe(1);
+                    expect($(".card").length).toBe(2);
                     expect($(".card:first>*:visible").length).toBe(4);
                 });
             });
 
-            xit("Verify number of cards and card items in MediumTile ", () => {
+            it("Verify number of cards and card items in MediumTile ", () => {
                 let options = getVisualInitOptions(helpers.testDom("300", "470"));
 
                 options.interactivity = { overflow: "hidden" };
@@ -769,7 +810,7 @@ module powerbitests {
                     expect($(".card")).toBeInDOM();
                     expect($(".card .cardItemContainer")).toBeInDOM();
 
-                    expect($(".card").length).toBe(3);
+                    expect($(".card").length).toBe(4);
                     expect($(".card:first>*:visible").length).toBe(6);
                 });
             });
@@ -805,6 +846,30 @@ module powerbitests {
 
                     // To prevent this test from being fragile, compare the width within an acceptable range. Expected value: ~125px
                     expect(helpers.isCloseTo(width, /*expected*/ 125, /*tolerance*/ 5)).toBeTruthy();
+                });
+            });
+            
+            it("Validate multiRowCard cardrow column width excludes title column", () => {
+                v.init(getVisualInitOptions(element = helpers.testDom("100", "760")));
+                
+                helpers.runWithImmediateAnimationFrames(() => {
+                    
+                    // Build a data view with text to be promoted as a title and numeric values
+                    let columnTypes: tableDataViewHelper.ColumnType[] = [];
+                    columnTypes.push(tableDataViewHelper.ColumnType.Text);
+                    
+                    for(let i = 0; i < 3; i++){
+                        columnTypes.push(tableDataViewHelper.ColumnType.Numeric);
+                    }
+                    
+                    fireOnDataChanged(v, { dataViews: [tableDataViewHelper.getDataWithColumnsOfType(columnTypes, false, 5)] });
+
+                    expect($(".card")).toBeInDOM();
+                    expect($(".card .cardItemContainer")).toBeInDOM();
+                    let width = element.find(".cardItemContainer").last().innerWidth();
+
+                    // To prevent this test from being fragile, compare the width within an acceptable range. Expected value: ~249px
+                    expect(helpers.isCloseTo(width, /*expected*/ 249, /*tolerance*/ 5)).toBeTruthy();
                 });
             });
 
@@ -918,7 +983,7 @@ module powerbitests {
 
                     let listViewOptions: powerbi.visuals.ListViewOptions = <powerbi.visuals.ListViewOptions>v["listView"]["options"];
 
-                    let hostServices = visualInitOptions.host
+                    let hostServices = visualInitOptions.host;
                     let loadMoreSpy = spyOn(hostServices, "loadMoreData");
 
                     listViewOptions.loadMoreData();

@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Power BI Visualizations
  *
  *  Copyright (c) Microsoft Corporation
@@ -24,10 +24,13 @@
  *  THE SOFTWARE.
  */
 
-/// <reference path="_references.ts"/>
+/// <reference path="./_references.ts"/>
 
 module powerbi {
     import IStringResourceProvider = jsCommon.IStringResourceProvider;
+
+    export const RS_AccessDeniedDueToRLSGroup = 'rsAccessDeniedDueToRLSGroup';
+    export const RS_CannotRetrieveModel = 'rsCannotRetrieveModel';
 
     export interface ServiceError {
         statusCode: number;
@@ -107,11 +110,11 @@ module powerbi {
                 errorDetails = PowerBIErrorDetailHelper.GetDetailsFromTransformError(resourceProvider, this.m_serviceError);
             }
             else {
-                errorDetails = PowerBIErrorDetailHelper.GetDetailsFromServerErrorStatusCode(resourceProvider, this.m_serviceError.statusCode);
+                errorDetails = PowerBIErrorDetailHelper.GetDetailsFromServerError(resourceProvider, this.m_serviceError);
             }
 
             PowerBIErrorDetailHelper.addAdditionalInfo(errorDetails, this.m_serviceError.errorDetails, resourceProvider);
-            PowerBIErrorDetailHelper.addMessageAndStackTrace(errorDetails, this.m_serviceError.message || null, this.m_serviceError.stackTrace || null, resourceProvider);
+            PowerBIErrorDetailHelper.addDebugErrorInfo(errorDetails, this.code, this.m_serviceError.message || null, this.m_serviceError.stackTrace || null);
 
             return errorDetails;
         }
@@ -123,33 +126,30 @@ module powerbi {
             if (pbiErrorDetails) {
                 for (let i = 0; i < pbiErrorDetails.length; i++) {
                     let element = pbiErrorDetails[i];
-                    let localizedCode = localize.get(PowerBIErrorDetailHelper.serverErrorPrefix + element.code);
+                    let localizedCode = localize.getOptional(PowerBIErrorDetailHelper.serverErrorPrefix + element.code);
                     let additionErrorInfoKeyValuePair = {
                         errorInfoKey: localizedCode ? localizedCode : element.code,
                         errorInfoValue: element.detail.type === PowerBIErrorResourceType.ResourceCodeReference ? localize.get(PowerBIErrorDetailHelper.serverErrorPrefix + element.detail.value) : element.detail.value
                     };
 
-                    errorDetails.additionalErrorInfo.push(additionErrorInfoKeyValuePair);
+                    errorDetails.displayableErrorInfo.push(additionErrorInfoKeyValuePair);
                 }
             }
             return errorDetails;
         }
 
-        public static addMessageAndStackTrace(errorDetails: ErrorDetails, message: string, stackTrace: string, localize: IStringResourceProvider): ErrorDetails {
+        public static addDebugErrorInfo(errorDetails: ErrorDetails, errorCode: string, message: string, stackTrace: string): ErrorDetails {
+            errorDetails.debugErrorInfo = errorDetails.debugErrorInfo || [];
+            if (errorCode) {
+                errorDetails.debugErrorInfo.push({ errorInfoKey: ClientErrorStrings.ClientErrorCode, errorInfoValue: errorCode, });
+            }
             if (message) {
-                let additionErrorInfoKeyValuePair = {
-                    errorInfoKey: localize.get("AdditionalErrorInfo_ErrorDetailsText"),
-                    errorInfoValue: message
-                };
-                errorDetails.additionalErrorInfo.push(additionErrorInfoKeyValuePair);
+                errorDetails.debugErrorInfo.push({ errorInfoKey: ClientErrorStrings.ErrorDetails, errorInfoValue: message, });
             }
             if (stackTrace) {
-                let additionErrorInfoKeyValuePair = {
-                    errorInfoKey: localize.get("AdditionalErrorInfo_StackTraceText"),
-                    errorInfoValue: stackTrace
-                };
-                errorDetails.additionalErrorInfo.push(additionErrorInfoKeyValuePair);
+                errorDetails.debugErrorInfo.push({ errorInfoKey: ClientErrorStrings.StackTrace, errorInfoValue: stackTrace, });
             }
+
             return errorDetails;
         }
 
@@ -163,50 +163,67 @@ module powerbi {
 
             let errorDetails: ErrorDetails = {
                 message: message,
-                additionalErrorInfo: additionalInfo,
+                displayableErrorInfo: additionalInfo,
             };
 
             return errorDetails;
         }
 
-        public static GetDetailsFromServerErrorStatusCode(localize: IStringResourceProvider, statusCode: number): ErrorDetails {
+        public static GetDetailsFromServerError(localize: IStringResourceProvider, serviceError: ServiceError): ErrorDetails {
             // TODO: Localize
             let message: string = "";
             let key: string = "";
             let val: string = "";
-
-            switch (statusCode) {
-                case ServiceErrorStatusCode.CsdlConvertXmlToConceptualSchema:
-                    message = localize.get('ServiceError_ModelCannotLoad');
-                    key = localize.get('ServiceError_ModelConvertFailureKey');
-                    val = localize.get('ServiceError_ModelConvertFailureValue');
-                    break;
-                case ServiceErrorStatusCode.CsdlCreateClientSchema:
-                    message = localize.get('ServiceError_ModelCannotLoad');
-                    key = localize.get('ServiceError_ModelCreationFailureKey');
-                    val = localize.get('ServiceError_ModelCreationFailureValue');
-                    break;
-                case ServiceErrorStatusCode.CsdlFetching:
+            let errorCodeHandled = false;
+            switch (serviceError.errorCode) {
+                case RS_AccessDeniedDueToRLSGroup:
                     message = localize.get('ServiceError_ModelCannotLoad');
                     key = localize.get('ServiceError_ModelFetchingFailureKey');
-                    val = localize.get('ServiceError_ModelFetchingFailureValue');
+                    val = localize.get('DsrError_NoPermissionDueToRLSGroupMessage');
+                    errorCodeHandled = true;
                     break;
-                case ServiceErrorStatusCode.ExecuteSemanticQueryError:
-                    message = localize.get('ServiceError_CannotLoadVisual');
-                    key = localize.get('ServiceError_ExecuteSemanticQueryErrorKey');
-                    val = localize.get('ServiceError_ExecuteSemanticQueryErrorValue');
+                case RS_CannotRetrieveModel:
+                    message = localize.get('ServiceError_ModelCannotLoad');
+                    key = localize.get('ServiceError_ModelFetchingFailureKey');
+                    val = localize.get('DsrError_CanNotRetrieveModelMessage');
+                    errorCodeHandled = true;
                     break;
-                case ServiceErrorStatusCode.ExecuteSemanticQueryInvalidStreamFormat:
-                    message = localize.get('ServiceError_CannotLoadVisual');
-                    key = localize.get('ServiceError_ExecuteSemanticQueryInvalidStreamFormatKey');
-                    val = localize.get('ServiceError_ExecuteSemanticQueryInvalidStreamFormatValue');
-                    break;
-                case ServiceErrorStatusCode.GeneralError:
-                default:
-                    message = localize.get('ServiceError_GeneralError');
-                    key = localize.get('ServiceError_GeneralErrorKey');
-                    val = localize.get('ServiceError_GeneralErrorValue');
-                    break;
+            }
+
+            if (!errorCodeHandled) {
+                switch (serviceError.statusCode) {
+                    case ServiceErrorStatusCode.CsdlConvertXmlToConceptualSchema:
+                        message = localize.get('ServiceError_ModelCannotLoad');
+                        key = localize.get('ServiceError_ModelConvertFailureKey');
+                        val = localize.get('ServiceError_ModelConvertFailureValue');
+                        break;
+                    case ServiceErrorStatusCode.CsdlCreateClientSchema:
+                        message = localize.get('ServiceError_ModelCannotLoad');
+                        key = localize.get('ServiceError_ModelCreationFailureKey');
+                        val = localize.get('ServiceError_ModelCreationFailureValue');
+                        break;
+                    case ServiceErrorStatusCode.CsdlFetching:
+                        message = localize.get('ServiceError_ModelCannotLoad');
+                        key = localize.get('ServiceError_ModelFetchingFailureKey');
+                        val = localize.get('ServiceError_ModelFetchingFailureValue');
+                        break;
+                    case ServiceErrorStatusCode.ExecuteSemanticQueryError:
+                        message = localize.get('ServiceError_CannotLoadVisual');
+                        key = localize.get('ServiceError_ExecuteSemanticQueryErrorKey');
+                        val = localize.get('ServiceError_ExecuteSemanticQueryErrorValue');
+                        break;
+                    case ServiceErrorStatusCode.ExecuteSemanticQueryInvalidStreamFormat:
+                        message = localize.get('ServiceError_CannotLoadVisual');
+                        key = localize.get('ServiceError_ExecuteSemanticQueryInvalidStreamFormatKey');
+                        val = localize.get('ServiceError_ExecuteSemanticQueryInvalidStreamFormatValue');
+                        break;
+                    case ServiceErrorStatusCode.GeneralError:
+                    default:
+                        message = localize.get('ServiceError_GeneralError');
+                        key = localize.get('ServiceError_GeneralErrorKey');
+                        val = localize.get('ServiceError_GeneralErrorValue');
+                        break;
+                }
             }
 
             let additionalInfo: ErrorInfoKeyValuePair[] = [];
@@ -214,7 +231,7 @@ module powerbi {
 
             let errorDetails: ErrorDetails = {
                 message: message,
-                additionalErrorInfo: additionalInfo,
+                displayableErrorInfo: additionalInfo,
             };
 
             return errorDetails;

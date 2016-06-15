@@ -31,39 +31,42 @@ module powerbi.data {
 
     export interface DataViewRegressionRunOptions {
         dataViewMappings: DataViewMapping[];
-        transformedDataViews: DataView[];
+        visualDataViews: DataView[];
         dataRoles: VisualDataRole[];
         objectDescriptors: DataViewObjectDescriptors;
         objectDefinitions: DataViewObjectDefinitions;
         colorAllocatorFactory: IColorAllocatorFactory;
         transformSelects: DataViewSelectTransform[];
-        dataView: DataView;
+        metadata: DataViewMetadata;
+        projectionActiveItems: DataViewProjectionActiveItems;
     }
 
     export module DataViewRegression {
         // TODO VSTS 6842046: Currently we are using a constant queryName since we don't have a way to generate
         // unique ones. There is a bug filed to do this by lawong, so this part will be fixed with that bug.
         const regressionXQueryName: string = 'RegressionX';
+        const regressionSeriesQueryName: string = 'RegressionSeries';
         export const regressionYQueryName: string = 'RegressionY';
 
         export function run(options: DataViewRegressionRunOptions): DataView[] {
             debug.assertValue(options, 'options');
 
             let dataViewMappings: DataViewMapping[] = options.dataViewMappings;
-            let transformedDataViews: DataView[] = options.transformedDataViews;
+            let visualDataViews: DataView[] = options.visualDataViews;
             let dataRoles: VisualDataRole[] = options.dataRoles;
             let objectDescriptors: DataViewObjectDescriptors = options.objectDescriptors;
             let objectDefinitions: DataViewObjectDefinitions = options.objectDefinitions;
             let colorAllocatorFactory: IColorAllocatorFactory = options.colorAllocatorFactory;
             let transformSelects: DataViewSelectTransform[] = options.transformSelects;
-            let dataView: DataView = options.dataView;
+            let projectionActiveItems = options.projectionActiveItems;
+            let metadata: DataViewMetadata = options.metadata;
 
-            if (transformedDataViews.length === 1  && transformSelects && dataView.metadata) {
+            if (!_.isEmpty(visualDataViews) && transformSelects && metadata) {
                 // compute linear regression line if applicable
-                let roleKindByQueryRef: RoleKindByQueryRef = DataViewSelectTransform.createRoleKindFromMetadata(transformSelects, dataView.metadata);
-                let projections: QueryProjectionsByRole = DataViewSelectTransform.projectionsFromSelects(transformSelects);
-                if (!roleKindByQueryRef || !projections || !dataViewMappings || !objectDescriptors || !objectDefinitions)
-                    return transformedDataViews;
+                let roleKindByQueryRef: RoleKindByQueryRef = DataViewSelectTransform.createRoleKindFromMetadata(transformSelects, metadata);
+                let projections: QueryProjectionsByRole = DataViewSelectTransform.projectionsFromSelects(transformSelects, projectionActiveItems);
+                if (!roleKindByQueryRef || !projections || _.isEmpty(dataViewMappings) || !objectDescriptors || !objectDefinitions)
+                    return visualDataViews;
 
                 let applicableDataViewMappings: DataViewMapping[] = DataViewAnalysis.chooseDataViewMappings(projections, dataViewMappings, roleKindByQueryRef, objectDescriptors, objectDefinitions).supportedMappings;
 
@@ -73,16 +76,21 @@ module powerbi.data {
                     });
 
                     if (regressionDataViewMapping) {
-                        let regressionSource = transformedDataViews[0];
-                        let regressionDataView: DataView = this.linearRegressionTransform(regressionSource, dataRoles, regressionDataViewMapping, objectDescriptors, objectDefinitions, colorAllocatorFactory);
+                        let regressionDataViews: DataView[] = [];
+                        for (let visualDataView of visualDataViews) {
+                            let regressionDataView: DataView = this.linearRegressionTransform(visualDataView, dataRoles, regressionDataViewMapping, objectDescriptors, objectDefinitions, colorAllocatorFactory);
 
-                        if (regressionDataView)
-                            transformedDataViews.push(regressionDataView);
+                            if (regressionDataView)
+                                regressionDataViews.push(regressionDataView);
+                        }
+
+                        if (!_.isEmpty(regressionDataViews))
+                            visualDataViews.push(...regressionDataViews);
                     }
                 }
             }
 
-            return transformedDataViews;
+            return visualDataViews;
         }
 
         /**
@@ -91,16 +99,10 @@ module powerbi.data {
          * The algorithm is as follows
          *
          * 1. Find the cartesian X and Y roles and the columns that correspond to those roles
-         * 2. Order the X-Y value pairs by the X values
-         * 3. Linearly map dates to their respective times and normalize since regression cannot be directly computed on dates
-         * 4. Compute the actual regression:
-         *    i.   xBar: average of X values, yBar: average of Y values
-         *    ii.  ssXX: sum of squares of X values = Sum(xi - xBar)^2
-         *    iii. ssXY: sum of squares of X and Y values  = Sum((xi - xBar)(yi - yBar)
-         *    iv.  Slope: ssXY / ssXX
-         *    v.   Intercept: yBar - xBar * slope
-         * 5. Compute the X and Y points for regression line using Y = Slope * X + Intercept
-         * 6. Create the new dataView using the points computed above
+         * 2. Get the data points, (X, Y) pairs, for each series, combining if needed.
+         * 3. Compute the X and Y points for regression line using Y = Slope * X + Intercept
+         * If highlights values are present, repeat steps 2 & 3 using highlight values.
+         * 4. Create the new dataView using the points computed above
          */
         export function linearRegressionTransform(
             sourceDataView: DataView,
@@ -116,136 +118,216 @@ module powerbi.data {
             debug.assertValue(objectDefinitions, 'objectDefinitions');
             debug.assertValue(colorAllocatorFactory, 'colorAllocatorFactory');
 
+            if (!sourceDataView.categorical)
+                return;
+
             // Step 1
-            let xRole: string = findRoleWithCartesianAxis(CartesianRoleKind.X, dataRoles);
-            let yRole: string = findRoleWithCartesianAxis(CartesianRoleKind.Y, dataRoles);
+            let xColumns: DataViewCategoricalColumn[] = getColumnsForCartesianRoleKind(CartesianRoleKind.X, sourceDataView.categorical, dataRoles);
+            let yColumns: DataViewCategoricalColumn[] = getColumnsForCartesianRoleKind(CartesianRoleKind.Y, sourceDataView.categorical, dataRoles);
 
-            if (!xRole || !yRole)
+            if (_.isEmpty(xColumns) || _.isEmpty(yColumns))
                 return;
 
-            let xColumn = getColumnForCategoricalRole(xRole, sourceDataView.categorical);
-            let yColumn = getColumnForCategoricalRole(yRole, sourceDataView.categorical);
+            let xColumnSource = xColumns[0].source;
+            let yColumnSource = yColumns[0].source;
 
-            if (!xColumn || !yColumn)
-                return;
+            let combineSeries = true;
+            if (regressionDataViewMapping.usage && regressionDataViewMapping.usage.regression && sourceDataView.metadata.objects) {
+                let regressionUsage = regressionDataViewMapping.usage.regression;
 
-            let unsortedXValues = xColumn.values;
-            let unsortedYValues = yColumn.values;
-
-            if (_.isEmpty(unsortedXValues) || _.isEmpty(unsortedYValues))
-                return;
-
-            // get the data type for each column; we will have null type when dataPoints have different type or if a value is null
-            let xDataType: string = getDataType(unsortedXValues);
-            if (!xDataType)
-                return;
-            let yDataType: string = getDataType(unsortedYValues);
-            if (!yDataType)
-                return;
+                let combineSeriesPropertyId = regressionUsage['combineSeries'];
+                if (combineSeriesPropertyId) {
+                    combineSeries = DataViewObjects.getValue<boolean>(sourceDataView.metadata.objects, combineSeriesPropertyId, true);
+                }
+            }
 
             // Step 2
-            let { xValues, yValues } = sortValues(unsortedXValues, unsortedYValues);
-            let minCategoryValue = xValues[0];
-            let maxCategoryValue = xValues[xValues.length - 1];
+            let dataPointsBySeries = getDataPointsBySeries(xColumns, yColumns, combineSeries, /* preferHighlights */ false);
+            let lineDefSet = calculateLineDefinitions(dataPointsBySeries);
+            if (!lineDefSet)
+                return;
+
+            let xMin = lineDefSet.xMin;
+            let xMax = lineDefSet.xMax;
+
+            let shouldComputeHightlights = hasHighlightValues(yColumns) || hasHighlightValues(xColumns);
+            let highlightsLineDefSet: LineDefinitionSet;
+            if (shouldComputeHightlights) {
+                let highlightDataPointsBySeries = getDataPointsBySeries(xColumns, yColumns, combineSeries, /* preferHighlights */ true);
+                highlightsLineDefSet = calculateLineDefinitions(highlightDataPointsBySeries);
+                if (highlightsLineDefSet) {
+                    xMin = _.min([xMin, highlightsLineDefSet.xMin]);
+                    xMax = _.max([xMax, highlightsLineDefSet.xMax]);
+                }
+                else {
+                    shouldComputeHightlights = false;
+                }
+            }
 
             // Step 3
-            if (xDataType === 'Date')
-                xValues = normalizeDateValues(xValues);
+            let valuesByTrend: number[][] = [];
+            for (let trend of lineDefSet.lineDefs) {
+                valuesByTrend.push(computeLineYValues(trend, +xMin, +xMax));
+            }
+
+            let highlightsByTrend: number[][];
+            if (shouldComputeHightlights) {
+                highlightsByTrend = [];
+                for (let trend of highlightsLineDefSet.lineDefs) {
+                    highlightsByTrend.push(computeLineYValues(trend, +xMin, +xMax));
+                }
+            }
 
             // Step 4
-            let { slope, intercept } = computeRegressionLine(xValues, yValues);
+            let groupValues: PrimitiveValue[];
+            if (combineSeries) {
+                groupValues = ['combinedRegressionSeries'];
+            }
+            else {
+                // If we are producing a trend line per series we need to maintain the group identities so that we can map between the
+                // trend line and the original series (to match the color for example).
+                if (sourceDataView.categorical.values.source) {
+                    // Source data view has dynamic series.
+                    let groups = sourceDataView.categorical.values.grouped();
+                    groupValues = _.map(groups, (group) => group.name);
+                }
+                else {
+                    // Source data view has static or no series.
+                    groupValues = _.map(yColumns, (column) => column.source.queryName);
+                }
+            }
 
             // Step 5
-            let minXValue = xValues[0];
-            let maxXValue = xValues[xValues.length - 1];
-
-            let newCategories = [minCategoryValue, maxCategoryValue];
-            let newValues = [minXValue * slope + intercept, maxXValue * slope + intercept];
-
-            // Step 6
-            let regressionDataView: DataView = createRegressionDataView(xColumn, yColumn, newCategories, newValues, sourceDataView, regressionDataViewMapping, objectDescriptors, objectDefinitions, colorAllocatorFactory);
+            let regressionDataView: DataView = createRegressionDataView(
+                xColumnSource,
+                yColumnSource,
+                groupValues,
+                [xMin, xMax],
+                valuesByTrend,
+                highlightsByTrend,
+                sourceDataView,
+                regressionDataViewMapping,
+                objectDescriptors,
+                objectDefinitions,
+                colorAllocatorFactory);
 
             return regressionDataView;
         }
 
-        function findRoleWithCartesianAxis(cartesianRole: CartesianRoleKind, dataRoles: VisualDataRole[]): string {
-            debug.assertValue(cartesianRole, 'cartesianRole');
-            debug.assertValue(dataRoles, 'dataRoles');
+        function calculateLineDefinitions(dataPointsBySeries: DataPointSet[]): LineDefinitionSet {
+            let xMin: PrimitiveValue;
+            let xMax: PrimitiveValue;
+            let lineDefs: LineDefinition[] = [];
+            for (let dataPointSet of dataPointsBySeries) {
+                let unsortedXValues: PrimitiveValue[] = dataPointSet.xValues;
+                let unsortedYValues: PrimitiveValue[] = dataPointSet.yValues;
 
-            for (let dataRole of dataRoles) {
-                if (dataRole.cartesianKind === cartesianRole)
-                    return dataRole.name;
+                if (_.isEmpty(unsortedXValues) || _.isEmpty(unsortedYValues))
+                    return;
+
+                // get the data type for each column; we will have null type when dataPoints have different type or if a value is null
+                let xDataType: string = getDataType(unsortedXValues);
+                if (!xDataType)
+                    return;
+                let yDataType: string = getDataType(unsortedYValues);
+                if (!yDataType)
+                    return;
+
+                let sortedDataPointSet: DataPointSet = sortValues(unsortedXValues, unsortedYValues);
+                let minCategoryValue: PrimitiveValue = sortedDataPointSet.xValues[0];
+                let maxCategoryValue: PrimitiveValue = sortedDataPointSet.xValues[sortedDataPointSet.xValues.length - 1];
+
+                let lineDef: LineDefinition = computeRegressionLine(sortedDataPointSet.xValues, sortedDataPointSet.yValues);
+
+                xMin = _.min([xMin, minCategoryValue]);
+                xMax = _.max([xMax, maxCategoryValue]);
+
+                lineDefs.push(lineDef);
             }
+
+            return {
+                lineDefs: lineDefs,
+                xMin: xMin,
+                xMax: xMax,
+            };
         }
 
-        function getColumnForCategoricalRole(roleName: string, categorical: DataViewCategorical): DataViewCategoryColumn | DataViewValueColumn {
-            debug.assertValue(roleName, 'roleName');
+        function getColumnsForCartesianRoleKind(roleKind: CartesianRoleKind, categorical: DataViewCategorical, roles: VisualDataRole[]): DataViewCategoricalColumn[] {
+            debug.assertValue(roleKind, 'roleKind');
             debug.assertValue(categorical, 'categorical');
-            debug.assertValue(categorical.categories, 'categorical.categories');
-            debug.assertValue(categorical.values, 'categorical.values');
 
-            let categoryColumn = getRoleFromColumn(roleName, categorical.categories);
-            if (categoryColumn)
-                return categoryColumn;
+            let columns = getColumnsWithRoleKind(roleKind, categorical.values, roles);
+            if (!_.isEmpty(columns))
+                return columns;
 
-            // Regression is not supported for multiple series yet, so return null column back
-            if (categorical.values.source)
-                return null;
+            let categories = categorical.categories;
+            if (_.isEmpty(categories))
+                return;
 
-            let valueColumn = getRoleFromColumn(roleName, categorical.values);
-            if (valueColumn)
-                return valueColumn;
-
-            return null;
+            debug.assert(categories.length === 1, 'composite category columns not supported');
+            let categoryColumn = categories[0];
+            columns = getColumnsWithRoleKind(roleKind, [categoryColumn], roles);
+            if (!_.isEmpty(columns))
+                return columns;
         }
 
-        function getRoleFromColumn(roleName: string, columns: DataViewCategoricalColumn[] | DataViewValueColumn[]): DataViewCategoryColumn | DataViewValueColumn {
-            debug.assertValue(roleName, 'roleName');
-            debug.assertValue(columns, 'columns');
+        function getColumnsWithRoleKind(roleKind: CartesianRoleKind, columns: DataViewCategoricalColumn[], roles: VisualDataRole[]): DataViewCategoricalColumn[] {
+            if (_.isEmpty(columns))
+                return;
 
-            return _.find(columns, (column) => {
-                return column.source.roles[roleName];
+            return _.filter(columns, (column) => {
+                for (let roleName in column.source.roles) {
+                    if (!column.source.roles[roleName])
+                        continue;
+
+                    let role = _.find(roles, (role) => role.name === roleName);
+                    if (role && role.cartesianKind === roleKind)
+                        return true;
+                }
+
+                return false;
             });
         }
 
-        function getDataType(values: any[]): string {
-            if (_.isEmpty(values) || values[0] == null)
+        function getDataType(values: PrimitiveValue[]): string {
+            let firstNonNull: PrimitiveValue = _.find(values, (value) => value != null);
+            if (firstNonNull == null)
                 return;
 
-            let dataType: string = typeof values[0];
+            let dataType: string = typeof firstNonNull;
 
-            if (_.some(values, (value) => value === null || typeof value !== dataType))
+            if (_.some(values, (value) => value != null && typeof value !== dataType))
                 return;
 
             return dataType;
         }
 
-        function sortValues(unsortedXValues: any[], unsortedYValues: any[]): { xValues: any[], yValues: any[] } {
+        function sortValues(unsortedXValues: PrimitiveValue[], unsortedYValues: PrimitiveValue[]): DataPointSet {
             debug.assertValue(unsortedXValues, 'unsortedXValues');
             debug.assertValue(unsortedYValues, 'unsortedYValues');
 
             let zippedValues = _.zip(unsortedXValues, unsortedYValues);
-            let sortedValues = _.sortBy(zippedValues, (valuePair) => {
-                return valuePair[0];
-            });
-            let [xValues, yValues] = _.unzip(sortedValues);
+            let [xValues, yValues] = _.chain(zippedValues)
+                .filter((valuePair) => valuePair[0] != null && valuePair[1] != null)
+                .sortBy((valuePair) => valuePair[0])
+                .unzip()
+                .value();
+
             return {
                 xValues: xValues,
                 yValues: yValues
             };
         }
 
-        function normalizeDateValues(xValues: any[]): number[] {
-            debug.assertValue(xValues, 'xValues');
-
-            let initialTime = (<Date>xValues[0]).getTime();
-            for (let i = 0; i < xValues.length; i++) {
-                xValues[i] = (<Date>xValues[i]).getTime() - initialTime;
-            }
-            return xValues;
-        }
-
-        function computeRegressionLine(xValues: number[], yValues: number[]): { slope: number, intercept: number } {
+        /**
+         * Computes a line definition using linear regression.
+         *   xBar: average of X values, yBar: average of Y values
+         *   ssXX: sum of squares of X values = Sum(xi - xBar)^2
+         *   ssXY: sum of squares of X and Y values  = Sum((xi - xBar)(yi - yBar)
+         *   Slope: ssXY / ssXX
+         *   Intercept: yBar - xBar * slope
+         */
+        function computeRegressionLine(xValues: number[], yValues: number[]): LineDefinition {
             debug.assertValue(xValues, 'xValues');
             debug.assertValue(yValues, 'yValues');
 
@@ -273,58 +355,164 @@ module powerbi.data {
             };
         }
 
+        function computeLineYValues(lineDef: LineDefinition, x1: number, x2: number): number[] {
+            return [x1 * lineDef.slope + lineDef.intercept, x2 * lineDef.slope + lineDef.intercept];
+        }
+
+        function getValuesFromColumn(column: DataViewCategoricalColumn, preferHighlights: boolean): PrimitiveValue[] {
+            if (preferHighlights) {
+                // Attempt to use highlight values. When X is categorical, we may not have highlight values so we should fall back to the non-highlight values.
+                let valueColumn = <DataViewValueColumn>column;
+                if (valueColumn.highlights) {
+                    return valueColumn.highlights;
+                }
+            }
+
+            return column.values;
+        }
+
+        function getDataPointsBySeries(xColumns: DataViewCategoricalColumn[], yColumns: DataViewCategoricalColumn[], combineSeries: boolean, preferHighlights: boolean): DataPointSet[] {
+            let dataPointsBySeries: DataPointSet[] = [];
+            let xValueArray: PrimitiveValue[][] = _.map(xColumns, (column) => getValuesFromColumn(column, preferHighlights));
+            let seriesYValues: PrimitiveValue[][] = _.map(yColumns, (column) => getValuesFromColumn(column, preferHighlights));
+
+            let multipleXValueColumns: boolean = xColumns.length > 1;
+            for (let i = 0; i < seriesYValues.length; i++) {
+                let xValues = multipleXValueColumns ? xValueArray[i] : xValueArray[0];
+                let yValues = seriesYValues[i];
+
+                if (combineSeries && dataPointsBySeries.length > 0) {
+                    dataPointsBySeries[0].xValues = dataPointsBySeries[0].xValues.concat(xValues);
+                    dataPointsBySeries[0].yValues = dataPointsBySeries[0].yValues.concat(yValues);
+                }
+                else {
+                    dataPointsBySeries.push({
+                        xValues: xValues,
+                        yValues: yValues,
+                    });
+                }
+            }
+
+            return dataPointsBySeries;
+        }
+
         function createRegressionDataView(
-            xColumn: DataViewCategoryColumn | DataViewValueColumn,
-            yColumn: DataViewCategoryColumn | DataViewValueColumn,
-            newCategories: any[],
-            newValues: any[],
+            xColumnSource: DataViewMetadataColumn,
+            yColumnSource: DataViewMetadataColumn,
+            groupValues: PrimitiveValue[],
+            categories: PrimitiveValue[],
+            values: PrimitiveValue[][],
+            highlights: PrimitiveValue[][],
             sourceDataView: DataView,
             regressionDataViewMapping: DataViewMapping,
             objectDescriptors: DataViewObjectDescriptors,
             objectDefinitions: DataViewObjectDefinitions,
             colorAllocatorFactory: IColorAllocatorFactory): DataView {
-            debug.assertValue(xColumn, 'xColumn');
-            debug.assertValue(yColumn, 'yColumn');
-            debug.assertValue(newCategories, 'newCategories');
-            debug.assertValue(newValues, 'newValues');
+            debug.assertValue(xColumnSource, 'xColumnSource');
+            debug.assertValue(yColumnSource, 'yColumnSource');
+            debug.assertValue(categories, 'categories');
+            debug.assertValue(values, 'values');
             debug.assertValue(sourceDataView, 'sourceDataView');
             debug.assertValue(objectDescriptors, 'objectDescriptors');
             debug.assertValue(objectDefinitions, 'objectDefinitions');
             debug.assertValue(colorAllocatorFactory, 'colorAllocatorFactory');
+            debug.assertAnyValue(highlights, 'highlights');
+            debug.assert(!highlights || highlights.length === values.length, 'highlights should have the same length as values');
 
             let xRole: string = (<DataViewRoleForMapping>regressionDataViewMapping.categorical.categories).for.in;
-            let yRole: string = (<DataViewRoleForMapping>regressionDataViewMapping.categorical.values).for.in;
-            let categoricalRoles: { [name: string]: boolean } = {};
-            categoricalRoles[xRole] = true;
-            let valueRoles: { [name: string]: boolean } = {};
-            valueRoles[yRole] = true;
+            let grouped = (<DataViewGroupedRoleMapping>regressionDataViewMapping.categorical.values).group;
+            let yRole: string;
+            let seriesRole: string;
+            if (grouped && !_.isEmpty(grouped.select)) {
+                yRole = (<DataViewRoleForMapping>grouped.select[0]).for ?
+                    (<DataViewRoleForMapping>grouped.select[0]).for.in :
+                    (<DataViewRoleBindMapping>grouped.select[0]).bind.to;
+                seriesRole = grouped.by;
+            }
+            if (!yRole || !seriesRole)
+                return;
+
+            let categoricalRoles: { [name: string]: boolean } = {[xRole]: true};
+            let valueRoles: { [name: string]: boolean } = {[yRole]: true};
+            let seriesRoles: { [name: string]: boolean } = {[seriesRole]: true};
+
+            let valuesBySeries: DataViewBuilderSeriesData[][] = [];
+            for (let index in values) {
+                let seriesData: DataViewBuilderSeriesData = {
+                    values: values[index],
+                };
+
+                if (highlights)
+                    seriesData.highlights = highlights[index];
+
+                valuesBySeries.push([seriesData]);
+            }
 
             let regressionDataView: DataView = createCategoricalDataViewBuilder()
-                .withCategories([{
+                .withCategory({
                     source: {
-                        displayName: xColumn.source.displayName,
+                        displayName: xColumnSource.displayName,
                         queryName: regressionXQueryName,
-                        type: xColumn.source.type,
-                        isMeasure: xColumn.source.isMeasure,
+                        type: xColumnSource.type,
+                        isMeasure: false,
                         roles: categoricalRoles
                     },
-                    values: newCategories
-                }])
-                .withValues({
-                    columns: [{
+                    values: categories,
+                    identityFrom: {
+                        fields: [SQExprBuilder.columnRef(SQExprBuilder.entity('s', 'RegressionEntity'), 'RegressionCategories')],
+                    },
+                })
+                .withGroupedValues({
+                    groupColumn: {
                         source: {
-                            displayName: yColumn.source.displayName,
+                            displayName: yColumnSource.displayName + 'Regression',
+                            queryName: regressionSeriesQueryName,
+                            type: yColumnSource.type,
+                            isMeasure: yColumnSource.isMeasure,
+                            roles: seriesRoles
+                        },
+                        values: groupValues,
+                        identityFrom: {
+                            fields: [SQExprBuilder.columnRef(SQExprBuilder.entity('s', 'RegressionEntity'), 'RegressionSeries')],
+                        }
+                    },
+                    valueColumns: [{
+                        source: {
+                            displayName: yColumnSource.displayName,
                             queryName: regressionYQueryName,
-                            type: yColumn.source.type,
-                            isMeasure: yColumn.source.isMeasure,
+                            type: yColumnSource.type,
+                            isMeasure: yColumnSource.isMeasure,
                             roles: valueRoles
                         },
-                        values: newValues
-                    }]
+                    }],
+                    data: valuesBySeries
                 })
                 .build();
             DataViewTransform.transformObjects(regressionDataView, data.StandardDataViewKinds.Categorical, objectDescriptors, objectDefinitions, [], colorAllocatorFactory);
             return regressionDataView;
         }
+
+        function hasHighlightValues(columns: DataViewCategoricalColumn[]): boolean {
+            return _.any(columns, (column) => {
+                let valueColumn = <DataViewValueColumn>column;
+                return valueColumn.highlights != null;
+            });
+        }
+    }
+
+    interface DataPointSet {
+        xValues: any[];
+        yValues: any[];
+    }
+
+    interface LineDefinition {
+        slope: number;
+        intercept: number;
+    }
+
+    interface LineDefinitionSet {
+        lineDefs: LineDefinition[];
+        xMin: PrimitiveValue;
+        xMax: PrimitiveValue;
     }
 }

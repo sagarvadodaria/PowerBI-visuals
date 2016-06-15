@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Power BI Visualizations
  *
  *  Copyright (c) Microsoft Corporation
@@ -37,6 +37,7 @@ module powerbi.visuals {
 
             export const HeaderContainer = createClassAndSelector('headerContainer');
             export const Header = createClassAndSelector('slicerHeader');
+            export const TitleHeader = createClassAndSelector('titleHeader');
             export const HeaderText = createClassAndSelector('headerText');
             export const Body = createClassAndSelector('slicerBody');
             export const Label = createClassAndSelector('slicerLabel');
@@ -44,6 +45,9 @@ module powerbi.visuals {
             export const LabelImage = createClassAndSelector('slicerImage');
             export const CountText = createClassAndSelector('slicerCountText');
             export const Clear = createClassAndSelector('clear');
+            export const SearchHeader = createClassAndSelector('searchHeader');
+            export const SearchHeaderCollapsed = createClassAndSelector('collapsed');
+            export const SearchHeaderShow = createClassAndSelector('show');
             export const MultiSelectEnabled = createClassAndSelector('isMultiSelectEnabled');
         }
 
@@ -51,6 +55,7 @@ module powerbi.visuals {
         export module DisplayNameKeys {
             export const Clear = 'Slicer_Clear';
             export const SelectAll = 'Slicer_SelectAll';
+            export const Search = 'SearchBox_Text';
         }
 
         /** Helper class for slicer settings  */
@@ -99,11 +104,22 @@ module powerbi.visuals {
                 slicerHeaderDiv.className = Selectors.Header.class;
 
                 let slicerHeader: D3.Selection = d3.select(slicerHeaderDiv);
-                slicerHeader.append('span')
+                let slicerTitle = slicerHeader.append('h2')
+                    .classed(Selectors.TitleHeader.class, true);
+                slicerTitle.append('span')
                     .classed(Selectors.Clear.class, true)
                     .attr('title', hostServices.getLocalizedString(DisplayNameKeys.Clear));
-                slicerHeader.append('div').classed(Selectors.HeaderText.class, true);
+                slicerTitle.append('div').classed(Selectors.HeaderText.class, true);
+                let slicerSearch = slicerHeader.append('div')
+                    .classed(Selectors.SearchHeader.class, true)
+                    .classed(Selectors.SearchHeaderCollapsed.class, true);
+                slicerSearch.append('span')
+                    .classed('powervisuals-glyph search', true)
+                    .attr('title', hostServices.getLocalizedString(DisplayNameKeys.Search));
 
+                slicerSearch.append('input')
+                    .attr('type', 'text');
+                
                 return slicerHeaderDiv;
             }
 
@@ -144,14 +160,23 @@ module powerbi.visuals {
             }
 
             public styleSlicerHeader(slicerHeader: D3.Selection, settings: SlicerSettings, headerText: string): void {
+                let titleHeader = slicerHeader.select(SlicerUtil.Selectors.TitleHeader.selector);
+                let searchHeader = slicerHeader.select(SlicerUtil.Selectors.SearchHeader.selector);
                 if (settings.header.show) {
-                    slicerHeader.style('display', 'block');
+                    titleHeader.style('display', 'block');
                     let headerTextElement = slicerHeader.select(Selectors.HeaderText.selector)
                         .text(headerText);
-                    this.setSlicerHeaderTextStyle(headerTextElement, settings);
+                    this.setSlicerHeaderTextStyle(titleHeader, headerTextElement, settings, settings.search.enabled);
+                } else {
+                    titleHeader.style('display', 'none');
                 }
-                else {
-                    slicerHeader.style('display', 'none');
+
+                if (settings.search.enabled) {
+                    searchHeader.classed(Selectors.SearchHeaderShow.class, true);
+                    searchHeader.classed(Selectors.SearchHeaderCollapsed.class, false);
+                } else {
+                    searchHeader.classed(Selectors.SearchHeaderShow.class, false);
+                    searchHeader.classed(Selectors.SearchHeaderCollapsed.class, true);
                 }
             }
 
@@ -183,12 +208,26 @@ module powerbi.visuals {
                 }
             }
 
-            private setSlicerHeaderTextStyle(slicerHeader: D3.Selection, settings: SlicerSettings): void {
+            private setSlicerHeaderTextStyle(slicerHeader: D3.Selection, headerTextElement: D3.Selection, settings: SlicerSettings, searchEnabled: boolean): void {
+                let hideOutline = false;
+
+                // When search is enabled, we will hide the default outline if the outline properties haven't been customized by user.
+                if (searchEnabled) {
+                    let defaultSetting = Slicer.DefaultStyleProperties();
+                    hideOutline = (settings.header.outline === defaultSetting.header.outline
+                        && settings.general.outlineWeight === defaultSetting.general.outlineWeight
+                        && settings.general.outlineColor === defaultSetting.general.outlineColor);
+                }
+
                 slicerHeader
                     .style({
-                        'border-style': 'solid',
+                        'border-style': hideOutline ? 'none': 'solid',
                         'border-color': settings.general.outlineColor,
                         'border-width': VisualBorderUtil.getBorderWidth(settings.header.outline, settings.general.outlineWeight),
+                    });
+
+                headerTextElement
+                    .style({
                         'color': settings.header.fontColor,
                         'background-color': settings.header.background,
                         'font-size': PixelConverter.fromPoint(settings.header.textSize),

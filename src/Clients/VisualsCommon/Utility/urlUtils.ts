@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Power BI Visualizations
  *
  *  Copyright (c) Microsoft Corporation
@@ -30,7 +30,6 @@ module jsCommon {
 
     export module UrlUtils {
         const urlRegex = /http[s]?:\/\/(\S)+/gi;
-        const imageUrlRegex = /http[s]?:\/\/(\S)+(png|jpg|jpeg|gif|svg)/gi;
 
         export function isValidUrl(value: string): boolean {
             if (StringExtensions.isNullOrEmpty(value))
@@ -48,14 +47,10 @@ module jsCommon {
          * @returns Whether the provided url is valid.
          **/
         export function isValidImageUrl(url: string): boolean {
-            if (_.isEmpty(url))
-                return false;
+            // VSTS: 7252099 / 7112236
+            // For now, passes for any valid Url
 
-            let match = RegExpExtensions.run(imageUrlRegex, url);
-            if (!!match && match.index === 0)
-                return true;
-
-            return false;
+            return isValidUrl(url);
         }
 
         export function findAllValidUrls(text: string): TextMatch[] {
@@ -80,5 +75,20 @@ module jsCommon {
 
             return urlRanges;
         }
+
+        export function getBase64ContentFromDataUri(uri: string): string {
+            if (uri.indexOf('data:') !== 0)
+                throw new Error("Expected data uri");
+
+            // Locate the base 64 content from the URL (e.g. "data:image/png;base64,xxxxx=")
+            const base64Token = ";base64,";
+            let indexBase64TokenStart = uri.indexOf(base64Token);
+            if (indexBase64TokenStart < 0)
+                throw new Error("Expected base 64 content in data url");
+
+            let indexBase64Start = indexBase64TokenStart + base64Token.length;
+            return uri.substr(indexBase64Start, uri.length - indexBase64Start);
+        }
+
     }
 }

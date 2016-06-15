@@ -1,3 +1,8 @@
+
+
+
+
+
 declare module powerbi.data {
     /** Allows generic traversal and type discovery for a SQExpr tree. */
     interface ISQExprVisitorWithArg<T, TArg> {
@@ -5,9 +10,11 @@ declare module powerbi.data {
         visitColumnRef(expr: SQColumnRefExpr, arg: TArg): T;
         visitMeasureRef(expr: SQMeasureRefExpr, arg: TArg): T;
         visitAggr(expr: SQAggregationExpr, arg: TArg): T;
+        visitPercentile(expr: SQPercentileExpr, arg: TArg): T;
         visitHierarchy(expr: SQHierarchyExpr, arg: TArg): T;
         visitHierarchyLevel(expr: SQHierarchyLevelExpr, arg: TArg): T;
         visitPropertyVariationSource(expr: SQPropertyVariationSourceExpr, arg: TArg): T;
+        visitSelectRef(expr: SQSelectRefExpr, arg: TArg): T;
         visitAnd(expr: SQAndExpr, arg: TArg): T;
         visitBetween(expr: SQBetweenExpr, arg: TArg): T;
         visitIn(expr: SQInExpr, arg: TArg): T;
@@ -23,6 +30,11 @@ declare module powerbi.data {
         visitNow(expr: SQNowExpr, arg: TArg): T;
         visitDefaultValue(expr: SQDefaultValueExpr, arg: TArg): T;
         visitAnyValue(expr: SQAnyValueExpr, arg: TArg): T;
+        visitArithmetic(expr: SQArithmeticExpr, arg: TArg): T;
+        visitFillRule(expr: SQFillRuleExpr, arg: TArg): T;
+        visitResourcePackageItem(expr: SQResourcePackageItemExpr, arg: TArg): T;
+        visitScopedEval(expr: SQScopedEvalExpr, arg: TArg): T;
+        visitWithRef(expr: SQWithRefExpr, arg: TArg): T;
     }
     interface ISQExprVisitor<T> extends ISQExprVisitorWithArg<T, void> {
     }
@@ -32,9 +44,11 @@ declare module powerbi.data {
         visitColumnRef(expr: SQColumnRefExpr, arg: TArg): T;
         visitMeasureRef(expr: SQMeasureRefExpr, arg: TArg): T;
         visitAggr(expr: SQAggregationExpr, arg: TArg): T;
+        visitPercentile(expr: SQPercentileExpr, arg: TArg): T;
         visitHierarchy(expr: SQHierarchyExpr, arg: TArg): T;
         visitHierarchyLevel(expr: SQHierarchyLevelExpr, arg: TArg): T;
         visitPropertyVariationSource(expr: SQPropertyVariationSourceExpr, arg: TArg): T;
+        visitSelectRef(expr: SQSelectRefExpr, arg: TArg): T;
         visitBetween(expr: SQBetweenExpr, arg: TArg): T;
         visitIn(expr: SQInExpr, arg: TArg): T;
         visitAnd(expr: SQAndExpr, arg: TArg): T;
@@ -50,20 +64,27 @@ declare module powerbi.data {
         visitNow(expr: SQNowExpr, arg: TArg): T;
         visitDefaultValue(expr: SQDefaultValueExpr, arg: TArg): T;
         visitAnyValue(expr: SQAnyValueExpr, arg: TArg): T;
+        visitArithmetic(expr: SQArithmeticExpr, arg: TArg): T;
+        visitFillRule(expr: SQFillRuleExpr, arg: TArg): T;
+        visitResourcePackageItem(expr: SQResourcePackageItemExpr, arg: TArg): T;
+        visitScopedEval(expr: SQScopedEvalExpr, arg: TArg): T;
+        visitWithRef(expr: SQWithRefExpr, arg: TArg): T;
         visitDefault(expr: SQExpr, arg: TArg): T;
     }
     /** Default ISQExprVisitor implementation that others may derive from. */
     class DefaultSQExprVisitor<T> extends DefaultSQExprVisitorWithArg<T, void> implements ISQExprVisitor<T> {
     }
     /** Default ISQExprVisitor implementation that implements default traversal and that others may derive from. */
-    class DefaultSQExprVisitorWithTraversal implements ISQExprVisitor<void> {
+    class DefaultSQExprVisitorWithTraversal implements ISQExprVisitor<void>, IFillRuleDefinitionVisitor<void, void> {
         visitEntity(expr: SQEntityExpr): void;
         visitColumnRef(expr: SQColumnRefExpr): void;
         visitMeasureRef(expr: SQMeasureRefExpr): void;
         visitAggr(expr: SQAggregationExpr): void;
+        visitPercentile(expr: SQPercentileExpr): void;
         visitHierarchy(expr: SQHierarchyExpr): void;
         visitHierarchyLevel(expr: SQHierarchyLevelExpr): void;
         visitPropertyVariationSource(expr: SQPropertyVariationSourceExpr): void;
+        visitSelectRef(expr: SQSelectRefExpr): void;
         visitBetween(expr: SQBetweenExpr): void;
         visitIn(expr: SQInExpr): void;
         visitAnd(expr: SQAndExpr): void;
@@ -79,9 +100,18 @@ declare module powerbi.data {
         visitNow(expr: SQNowExpr): void;
         visitDefaultValue(expr: SQDefaultValueExpr): void;
         visitAnyValue(expr: SQAnyValueExpr): void;
+        visitArithmetic(expr: SQArithmeticExpr): void;
+        visitFillRule(expr: SQFillRuleExpr): void;
+        visitLinearGradient2(gradient2: LinearGradient2Definition): void;
+        visitLinearGradient3(gradient3: LinearGradient3Definition): void;
+        visitResourcePackageItem(expr: SQResourcePackageItemExpr): void;
+        visitScopedEval(expr: SQScopedEvalExpr): void;
+        visitWithRef(expr: SQWithRefExpr): void;
         visitDefault(expr: SQExpr): void;
+        private visitFillRuleStop(stop);
     }
 }
+
 declare module powerbi {
     /** Defines a custom enumeration data type, and its values. */
     interface IEnumType {
@@ -90,6 +120,7 @@ declare module powerbi {
     }
     function createEnumType(members: IEnumMember[]): IEnumType;
 }
+
 declare module powerbi {
     import SQExpr = powerbi.data.SQExpr;
     interface FillDefinition {
@@ -110,6 +141,7 @@ declare module powerbi {
         function nullable(descriptor: FillSolidColorTypeDescriptor): boolean;
     }
 }
+
 declare module powerbi {
     import SQExpr = powerbi.data.SQExpr;
     interface FillRuleTypeDescriptor {
@@ -120,9 +152,16 @@ declare module powerbi {
     }
     type LinearGradient2 = LinearGradient2Generic<string, number>;
     type LinearGradient3 = LinearGradient3Generic<string, number>;
+    type LinearGradient2Definition = LinearGradient2Generic<SQExpr, SQExpr>;
+    type LinearGradient3Definition = LinearGradient3Generic<SQExpr, SQExpr>;
     type RuleColorStopDefinition = RuleColorStopGeneric<SQExpr, SQExpr>;
     type RuleColorStop = RuleColorStopGeneric<string, number>;
+    interface IFillRuleDefinitionVisitor<T2, T3> {
+        visitLinearGradient2(linearGradient2: LinearGradient2Definition, arg?: any): T2;
+        visitLinearGradient3(linearGradient3: LinearGradient3Definition, arg?: any): T3;
+    }
 }
+
 declare module powerbi {
     import SQExpr = powerbi.data.SQExpr;
     interface ImageTypeDescriptor {
@@ -132,6 +171,7 @@ declare module powerbi {
         const urlType: ValueTypeDescriptor;
     }
 }
+
 declare module powerbi {
     import SQExpr = powerbi.data.SQExpr;
     interface ParagraphsTypeDescriptor {
@@ -149,6 +189,7 @@ declare module powerbi {
         value: string | TExpr;
     }
 }
+
 declare module powerbi {
     import SemanticFilter = powerbi.data.SemanticFilter;
     type StructuralObjectDefinition = FillDefinition | FillRuleDefinition | SemanticFilter | DefaultValueDefinition | ImageDefinition | ParagraphsDefinition;
@@ -156,6 +197,7 @@ declare module powerbi {
         function isValid(type: StructuralTypeDescriptor): boolean;
     }
 }
+
 declare module powerbi {
     interface ValueTypeDescriptor {
         extendedType?: ExtendedType;
@@ -181,8 +223,16 @@ declare module powerbi {
         static fromPrimitiveTypeAndCategory(primitiveType: PrimitiveType, category?: string): ValueType;
         /** Creates a ValueType to describe the given IEnumType. */
         static fromEnum(enumType: IEnumType): ValueType;
+        /** Determines if the specified type is compatible from at least one of the otherTypes. */
+        static isCompatibleTo(type: ValueTypeDescriptor, otherTypes: ValueTypeDescriptor[]): boolean;
         /** Determines if the instance ValueType is convertable from the 'other' ValueType. */
         isCompatibleFrom(other: ValueType): boolean;
+        /**
+         * Determines if the instance ValueType is equal to the 'other' ValueType
+         * @param {ValueType} other the other ValueType to check equality against
+         * @returns True if the instance ValueType is equal to the 'other' ValueType
+         */
+        equals(other: ValueType): boolean;
         /** Gets the exact primitive type of this ValueType. */
         primitiveType: PrimitiveType;
         /** Gets the exact extended type of this ValueType. */
@@ -249,6 +299,7 @@ declare module powerbi {
         image: boolean;
         imageUrl: boolean;
         webUrl: boolean;
+        barcode: boolean;
     }
     class FormattingType implements FormattingTypeDescriptor {
         private underlyingType;
@@ -327,6 +378,9 @@ declare module powerbi {
         Image = 13109259,
         ImageUrl = 13174785,
         WebUrl = 13240321,
+        Barcode = 13305856,
+        Barcode_Text = 13305857,
+        Barcode_Integer = 13306116,
         Color = 19664897,
         FormatString = 19730433,
         Alignment = 20058113,
@@ -335,148 +389,10 @@ declare module powerbi {
         LabelDensity = 20254979,
         Enumeration = 26214401,
         ScriptSource = 32776193,
+        SearchEnabled = 65541,
     }
 }
-declare module powerbi.data {
-    import ArrayNamedItems = jsCommon.ArrayNamedItems;
-    class ConceptualSchema {
-        entities: ArrayNamedItems<ConceptualEntity>;
-        capabilities: ConceptualCapabilities;
-        /** Indicates whether the user can edit this ConceptualSchema.  This is used to enable/disable model authoring UX. */
-        canEdit: boolean;
-        findProperty(entityName: string, propertyName: string): ConceptualProperty;
-        findHierarchy(entityName: string, name: string): ConceptualHierarchy;
-        findHierarchyByVariation(variationEntityName: string, variationColumnName: string, variationName: string, hierarchyName: string): ConceptualHierarchy;
-        /**
-        * Returns the first property of the entity whose kpi is tied to kpiProperty
-        */
-        findPropertyWithKpi(entityName: string, kpiProperty: ConceptualProperty): ConceptualProperty;
-    }
-    interface ConceptualCapabilities {
-        discourageQueryAggregateUsage: boolean;
-        normalizedFiveStateKpiRange: boolean;
-        supportsMedian: boolean;
-        supportsPercentile: boolean;
-    }
-    interface ConceptualPropertyItemContainer {
-        properties: ArrayNamedItems<ConceptualProperty>;
-        hierarchies?: ArrayNamedItems<ConceptualHierarchy>;
-        displayFolders?: ArrayNamedItems<ConceptualDisplayFolder>;
-    }
-    interface ConceptualPropertyItem {
-        name: string;
-        displayName: string;
-        hidden?: boolean;
-    }
-    interface ConceptualEntity extends ConceptualPropertyItemContainer {
-        name: string;
-        displayName: string;
-        visibility?: ConceptualVisibility;
-        calculated?: boolean;
-        queryable?: ConceptualQueryableState;
-        navigationProperties?: ArrayNamedItems<ConceptualNavigationProperty>;
-    }
-    interface ConceptualDisplayFolder extends ConceptualPropertyItem, ConceptualPropertyItemContainer {
-    }
-    interface ConceptualProperty extends ConceptualPropertyItem {
-        type: ValueType;
-        kind: ConceptualPropertyKind;
-        format?: string;
-        column?: ConceptualColumn;
-        queryable?: ConceptualQueryableState;
-        measure?: ConceptualMeasure;
-        kpiValue?: ConceptualProperty;
-    }
-    interface ConceptualHierarchy extends ConceptualPropertyItem {
-        levels: ArrayNamedItems<ConceptualHierarchyLevel>;
-    }
-    interface ConceptualHierarchyLevel extends ConceptualPropertyItem {
-        column: ConceptualProperty;
-    }
-    interface ConceptualNavigationProperty {
-        name: string;
-        isActive: boolean;
-        sourceColumn?: ConceptualColumn;
-        targetEntity: ConceptualEntity;
-        sourceMultiplicity: ConceptualMultiplicity;
-        targetMultiplicity: ConceptualMultiplicity;
-    }
-    interface ConceptualVariationSource {
-        name: string;
-        isDefault: boolean;
-        navigationProperty?: ConceptualNavigationProperty;
-        defaultHierarchy?: ConceptualHierarchy;
-        defaultProperty?: ConceptualProperty;
-    }
-    interface ConceptualColumn {
-        defaultAggregate?: ConceptualDefaultAggregate;
-        keys?: ArrayNamedItems<ConceptualProperty>;
-        idOnEntityKey?: boolean;
-        calculated?: boolean;
-        defaultValue?: SQConstantExpr;
-        variations?: ArrayNamedItems<ConceptualVariationSource>;
-    }
-    interface ConceptualMeasure {
-        kpi?: ConceptualPropertyKpi;
-    }
-    interface ConceptualPropertyKpi {
-        statusMetadata: DataViewKpiColumnMetadata;
-        trendMetadata?: DataViewKpiColumnMetadata;
-        status?: ConceptualProperty;
-        goal?: ConceptualProperty;
-        trend?: ConceptualProperty;
-    }
-    const enum ConceptualVisibility {
-        Visible = 0,
-        Hidden = 1,
-        ShowAsVariationsOnly = 2,
-        IsPrivate = 4,
-    }
-    const enum ConceptualQueryableState {
-        Queryable = 0,
-        Error = 1,
-    }
-    const enum ConceptualMultiplicity {
-        ZeroOrOne = 0,
-        One = 1,
-        Many = 2,
-    }
-    const enum ConceptualPropertyKind {
-        Column = 0,
-        Measure = 1,
-        Kpi = 2,
-    }
-    const enum ConceptualDefaultAggregate {
-        Default = 0,
-        None = 1,
-        Sum = 2,
-        Count = 3,
-        Min = 4,
-        Max = 5,
-        Average = 6,
-        DistinctCount = 7,
-    }
-    enum ConceptualDataCategory {
-        None = 0,
-        Address = 1,
-        City = 2,
-        Company = 3,
-        Continent = 4,
-        Country = 5,
-        County = 6,
-        Date = 7,
-        Image = 8,
-        ImageUrl = 9,
-        Latitude = 10,
-        Longitude = 11,
-        Organization = 12,
-        Place = 13,
-        PostalCode = 14,
-        Product = 15,
-        StateOrProvince = 16,
-        WebUrl = 17,
-    }
-}
+
 declare module powerbi.data {
     /**
      * Represents the versions of the data shape binding structure.
@@ -508,11 +424,13 @@ declare module powerbi.data {
         Version?: number;
         Primary: DataShapeBindingAxis;
         Secondary?: DataShapeBindingAxis;
+        Aggregates?: DataShapeBindingAggregate[];
         Projections?: number[];
         Limits?: DataShapeBindingLimit[];
         Highlights?: FilterDefinition[];
         DataReduction?: DataShapeBindingDataReduction;
         IncludeEmptyGroups?: boolean;
+        SuppressedJoinPredicates?: number[];
     }
     interface DataShapeBindingDataReduction {
         Primary?: DataShapeBindingDataReductionAlgorithm;
@@ -548,16 +466,42 @@ declare module powerbi.data {
     }
     interface DataShapeBindingAxisGrouping {
         Projections: number[];
+        GroupBy?: number[];
         SuppressedProjections?: number[];
         Subtotal?: SubtotalType;
         ShowItemsWithNoData?: number[];
     }
+    interface DataShapeBindingAggregate {
+        Select: number;
+        Kind?: DataShapeBindingAggregateKind;
+        Aggregations?: DataShapeBindingSelectAggregateContainer[];
+    }
+    const enum DataShapeBindingAggregateKind {
+        None = 0,
+        Min = 1,
+        Max = 2,
+    }
+    interface DataShapeBindingSelectAggregateContainer {
+        Percentile?: DataShapeBindingSelectPercentileAggregate;
+        Min?: DataShapeBindingSelectMinAggregate;
+        Max?: DataShapeBindingSelectMaxAggregate;
+    }
+    interface DataShapeBindingSelectPercentileAggregate {
+        Exclusive?: boolean;
+        K: number;
+    }
+    interface DataShapeBindingSelectMaxAggregate {
+    }
+    interface DataShapeBindingSelectMinAggregate {
+    }
 }
+
 declare module powerbi.data {
     module DataShapeBindingDataReduction {
         function createFrom(reduction: ReductionAlgorithm): DataShapeBindingDataReductionAlgorithm;
     }
 }
+
 declare module powerbi.data {
     interface FederatedConceptualSchemaInitOptions {
         schemas: {
@@ -576,6 +520,7 @@ declare module powerbi.data {
     interface ConceptualSchemaLink {
     }
 }
+
 declare module powerbi.data {
     module Selector {
         function filterFromSelector(selectors: Selector[], isNot?: boolean): SemanticFilter;
@@ -585,8 +530,11 @@ declare module powerbi.data {
         function equals(x: Selector, y: Selector): boolean;
         function getKey(selector: Selector): string;
         function containsWildcard(selector: Selector): boolean;
+        function hasRoleWildcard(selector: Selector): boolean;
+        function isRoleWildcard(dataItem: DataRepetitionSelector): dataItem is DataViewRoleWildcard;
     }
 }
+
 declare module powerbi.data {
     interface QueryDefinition {
         Version?: number;
@@ -594,6 +542,7 @@ declare module powerbi.data {
         Where?: QueryFilter[];
         OrderBy?: QuerySortClause[];
         Select: QueryExpressionContainer[];
+        GroupBy?: QueryExpressionContainer[];
     }
     interface FilterDefinition {
         Version?: number;
@@ -625,6 +574,7 @@ declare module powerbi.data {
         Column?: QueryColumnExpression;
         Measure?: QueryMeasureExpression;
         Aggregation?: QueryAggregationExpression;
+        Percentile?: QueryPercentileExpression;
         Hierarchy?: QueryHierarchyExpression;
         HierarchyLevel?: QueryHierarchyLevelExpression;
         PropertyVariationSource?: QueryPropertyVariationSourceExpression;
@@ -652,6 +602,12 @@ declare module powerbi.data {
         Now?: QueryNowExpression;
         DefaultValue?: QueryDefaultValueExpression;
         AnyValue?: QueryAnyValueExpression;
+        Arithmetic?: QueryArithmeticExpression;
+        ScopedEval?: QueryScopedEvalExpression;
+        WithRef?: QueryWithRefExpression;
+        FillRule?: QueryFillRuleExpression;
+        ResourcePackageItem?: QueryResourcePackageItem;
+        SelectRef?: QuerySelectRefExpression;
     }
     interface QueryPropertyExpression {
         Expression: QueryExpressionContainer;
@@ -664,9 +620,17 @@ declare module powerbi.data {
     interface QuerySourceRefExpression {
         Source: string;
     }
+    interface QuerySelectRefExpression {
+        ExpressionName: string;
+    }
     interface QueryAggregationExpression {
         Function: QueryAggregateFunction;
         Expression: QueryExpressionContainer;
+    }
+    interface QueryPercentileExpression {
+        Expression: QueryExpressionContainer;
+        K: number;
+        Exclusive?: boolean;
     }
     interface QueryHierarchyExpression {
         Expression: QueryExpressionContainer;
@@ -744,6 +708,34 @@ declare module powerbi.data {
     }
     interface QueryAnyValueExpression {
     }
+    interface QueryArithmeticExpression {
+        Left: QueryExpressionContainer;
+        Right: QueryExpressionContainer;
+        Operator: ArithmeticOperatorKind;
+    }
+    const enum ArithmeticOperatorKind {
+        Add = 0,
+        Subtract = 1,
+        Multiply = 2,
+        Divide = 3,
+    }
+    function getArithmeticOperatorName(arithmeticOperatorKind: ArithmeticOperatorKind): string;
+    interface QueryFillRuleExpression {
+        Input: QueryExpressionContainer;
+        FillRule: FillRuleGeneric<QueryExpressionContainer, QueryExpressionContainer>;
+    }
+    interface QueryResourcePackageItem {
+        PackageName: string;
+        PackageType: number;
+        ItemName: string;
+    }
+    interface QueryScopedEvalExpression {
+        Expression: QueryExpressionContainer;
+        Scope: QueryExpressionContainer[];
+    }
+    interface QueryWithRefExpression {
+        ExpressionName: string;
+    }
     enum TimeUnit {
         Day = 0,
         Week = 1,
@@ -808,12 +800,15 @@ declare module powerbi.data {
     interface FilterMetadata {
         Restatement: string;
         Kind?: FilterKind;
+        /** The expression being filtered.  This is reflected in the filter card UI. */
+        expression?: QueryExpressionContainer;
     }
     enum FilterKind {
         Default = 0,
         Period = 1,
     }
 }
+
 declare module powerbi.data {
     /** Represents a projection from a query result. */
     interface QueryProjection {
@@ -837,6 +832,8 @@ declare module powerbi.data {
         showAll: boolean;
         addActiveQueryReference(queryRef: string): void;
         getLastActiveQueryReference(): string;
+        /** Replaces the given oldQueryRef with newQueryRef in this QueryProjectionCollection. */
+        replaceQueryRef(oldQueryRef: string, newQueryRef: string): void;
         clone(): QueryProjectionCollection;
     }
     module QueryProjectionsByRole {
@@ -846,6 +843,7 @@ declare module powerbi.data {
         function getRole(roles: QueryProjectionsByRole, name: string): QueryProjectionCollection;
     }
 }
+
 declare module powerbi {
     interface VisualElement {
         DataRoles?: DataRole[];
@@ -881,10 +879,330 @@ declare module powerbi.data.contracts {
         type?: string;
     }
 }
+
+declare module powerbi {
+    /** Repreasents the sequence of the dates/times */
+    class DateTimeSequence {
+        private static MIN_COUNT;
+        private static MAX_COUNT;
+        min: Date;
+        max: Date;
+        unit: DateTimeUnit;
+        sequence: Date[];
+        interval: number;
+        intervalOffset: number;
+        /** Creates new instance of the DateTimeSequence */
+        constructor(unit: DateTimeUnit);
+        /**
+         * Add a new Date to a sequence.
+         * @param date - date to add
+         */
+        add(date: Date): void;
+        /**
+         * Extends the sequence to cover new date range
+         * @param min - new min to be covered by sequence
+         * @param max - new max to be covered by sequence
+         */
+        extendToCover(min: Date, max: Date): void;
+        /**
+         * Move the sequence to cover new date range
+         * @param min - new min to be covered by sequence
+         * @param max - new max to be covered by sequence
+         */
+        moveToCover(min: Date, max: Date): void;
+        /**
+         * Calculate a new DateTimeSequence
+         * @param dataMin - Date representing min of the data range
+         * @param dataMax - Date representing max of the data range
+         * @param expectedCount - expected number of intervals in the sequence
+         * @param unit - of the intervals in the sequence
+         */
+        static calculate(dataMin: Date, dataMax: Date, expectedCount: number, unit?: DateTimeUnit): DateTimeSequence;
+        static calculateYears(dataMin: Date, dataMax: Date, expectedCount: number): DateTimeSequence;
+        static calculateMonths(dataMin: Date, dataMax: Date, expectedCount: number): DateTimeSequence;
+        static calculateWeeks(dataMin: Date, dataMax: Date, expectedCount: number): DateTimeSequence;
+        static calculateDays(dataMin: Date, dataMax: Date, expectedCount: number): DateTimeSequence;
+        static calculateHours(dataMin: Date, dataMax: Date, expectedCount: number): DateTimeSequence;
+        static calculateMinutes(dataMin: Date, dataMax: Date, expectedCount: number): DateTimeSequence;
+        static calculateSeconds(dataMin: Date, dataMax: Date, expectedCount: number): DateTimeSequence;
+        static calculateMilliseconds(dataMin: Date, dataMax: Date, expectedCount: number): DateTimeSequence;
+        static addInterval(value: Date, interval: number, unit: DateTimeUnit): Date;
+        private static fromNumericSequence(date, sequence, unit);
+        private static getDelta(min, max, unit);
+        static getIntervalUnit(min: Date, max: Date, maxCount: number): DateTimeUnit;
+    }
+    /** DateUtils module provides DateTimeSequence with set of additional date manipulation routines */
+    module DateUtils {
+        /**
+         * Adds a specified number of years to the provided date.
+         * @param date - date value
+         * @param yearDelta - number of years to add
+         */
+        function addYears(date: Date, yearDelta: number): Date;
+        /**
+         * Adds a specified number of months to the provided date.
+         * @param date - date value
+         * @param monthDelta - number of months to add
+         */
+        function addMonths(date: Date, monthDelta: number): Date;
+        /**
+         * Adds a specified number of weeks to the provided date.
+         * @param date - date value
+         * @param weeks - number of weeks to add
+         */
+        function addWeeks(date: Date, weeks: number): Date;
+        /**
+         * Adds a specified number of days to the provided date.
+         * @param date - date value
+         * @param days - number of days to add
+         */
+        function addDays(date: Date, days: number): Date;
+        /**
+         * Adds a specified number of hours to the provided date.
+         * @param date - date value
+         * @param hours - number of hours to add
+         */
+        function addHours(date: Date, hours: number): Date;
+        /**
+         * Adds a specified number of minutes to the provided date.
+         * @param date - date value
+         * @param minutes - number of minutes to add
+         */
+        function addMinutes(date: Date, minutes: number): Date;
+        /**
+         * Adds a specified number of seconds to the provided date.
+         * @param date - date value
+         * @param seconds - number of seconds to add
+         */
+        function addSeconds(date: Date, seconds: number): Date;
+        /**
+         * Adds a specified number of milliseconds to the provided date.
+         * @param date - date value
+         * @param milliseconds - number of milliseconds to add
+         */
+        function addMilliseconds(date: Date, milliseconds: number): Date;
+    }
+}
+
+declare module powerbi {
+    class DisplayUnit {
+        value: number;
+        title: string;
+        labelFormat: string;
+        applicableRangeMin: number;
+        applicableRangeMax: number;
+        project(value: number): number;
+        reverseProject(value: number): number;
+        isApplicableTo(value: number): boolean;
+        isScaling(): boolean;
+    }
+    class DisplayUnitSystem {
+        units: DisplayUnit[];
+        displayUnit: DisplayUnit;
+        private unitBaseValue;
+        protected static UNSUPPORTED_FORMATS: RegExp;
+        constructor(units?: DisplayUnit[]);
+        title: string;
+        update(value: number): void;
+        private findApplicableDisplayUnit(value);
+        format(value: number, format: string, decimals?: number, trailingZeros?: boolean): string;
+        isFormatSupported(format: string): boolean;
+        isPercentageFormat(format: string): boolean;
+        shouldRespectScalingUnit(format: string): boolean;
+        getNumberOfDecimalsForFormatting(format: string, decimals?: number): number;
+        isScalingUnit(): boolean;
+        private formatHelper(value, nonScientificFormat, format, decimals?, trailingZeros?);
+        /** Formats a single value by choosing an appropriate base for the DisplayUnitSystem before formatting. */
+        formatSingleValue(value: number, format: string, decimals?: number, trailingZeros?: boolean): string;
+        private shouldUseValuePrecision(value);
+        protected isScientific(value: number): boolean;
+        protected hasScientitifcFormat(format: string): boolean;
+        protected supportsScientificFormat(format: string): boolean;
+        protected shouldFallbackToScientific(value: number, format: string): boolean;
+        protected getScientificFormat(data: number, format: string, decimals: number, trailingZeros: boolean): string;
+    }
+    /** Provides a unit system that is defined by formatting in the model, and is suitable for visualizations shown in single number visuals in explore mode. */
+    class NoDisplayUnitSystem extends DisplayUnitSystem {
+        constructor();
+    }
+    /** Provides a unit system that creates a more concise format for displaying values. This is suitable for most of the cases where
+        we are showing values (chart axes) and as such it is the default unit system. */
+    class DefaultDisplayUnitSystem extends DisplayUnitSystem {
+        private static units;
+        constructor(unitLookup: (exponent: number) => DisplayUnitSystemNames);
+        format(data: number, format: string, decimals?: number, trailingZeros?: boolean): string;
+        static reset(): void;
+        private static getUnits(unitLookup);
+    }
+    /** Provides a unit system that creates a more concise format for displaying values, but only allows showing a unit if we have at least
+        one of those units (e.g. 0.9M is not allowed since it's less than 1 million). This is suitable for cases such as dashboard tiles
+        where we have restricted space but do not want to show partial units. */
+    class WholeUnitsDisplayUnitSystem extends DisplayUnitSystem {
+        private static units;
+        constructor(unitLookup: (exponent: number) => DisplayUnitSystemNames);
+        static reset(): void;
+        private static getUnits(unitLookup);
+        format(data: number, format: string, decimals?: number, trailingZeros?: boolean): string;
+    }
+    class DataLabelsDisplayUnitSystem extends DisplayUnitSystem {
+        private static AUTO_DISPLAYUNIT_VALUE;
+        private static NONE_DISPLAYUNIT_VALUE;
+        protected static UNSUPPORTED_FORMATS: RegExp;
+        private static units;
+        constructor(unitLookup: (exponent: number) => DisplayUnitSystemNames);
+        isFormatSupported(format: string): boolean;
+        private static getUnits(unitLookup);
+        format(data: number, format: string, decimals?: number, trailingZeros?: boolean): string;
+    }
+    interface DisplayUnitSystemNames {
+        title: string;
+        format: string;
+    }
+}
+
+declare module powerbi {
+    class NumericSequence {
+        private static MIN_COUNT;
+        private static MAX_COUNT;
+        private maxAllowedMargin;
+        private canExtendMin;
+        private canExtendMax;
+        interval: number;
+        intervalOffset: number;
+        min: number;
+        max: number;
+        precision: number;
+        sequence: number[];
+        static calculate(range: NumericSequenceRange, expectedCount: number, maxAllowedMargin?: number, minPower?: number, useZeroRefPoint?: boolean, steps?: number[]): NumericSequence;
+        /**
+         * Calculates the sequence of int numbers which are mapped to the multiples of the units grid.
+         * @min - The minimum of the range.
+         * @max - The maximum of the range.
+         * @maxCount - The max count of intervals.
+         * @steps - array of intervals.
+         */
+        static calculateUnits(min: number, max: number, maxCount: number, steps: number[]): NumericSequence;
+        trimMinMax(min: number, max: number): void;
+    }
+}
+
+declare module powerbi {
+    class NumericSequenceRange {
+        private static DEFAULT_MAX;
+        private static MIN_SUPPORTED_DOUBLE;
+        private static MAX_SUPPORTED_DOUBLE;
+        min: number;
+        max: number;
+        includeZero: boolean;
+        forcedSingleStop: number;
+        hasDataRange: boolean;
+        hasFixedMin: boolean;
+        hasFixedMax: boolean;
+        private _ensureIncludeZero();
+        private _ensureNotEmpty();
+        private _ensureDirection();
+        getSize(): number;
+        shrinkByStep(range: NumericSequenceRange, step: number): void;
+        static calculate(dataMin: number, dataMax: number, fixedMin?: number, fixedMax?: number, includeZero?: boolean): NumericSequenceRange;
+        static calculateDataRange(dataMin: number, dataMax: number, includeZero?: boolean): NumericSequenceRange;
+        static calculateFixedRange(fixedMin: number, fixedMax: number, includeZero?: boolean): NumericSequenceRange;
+    }
+    /** Note: Exported for testability */
+    module ValueUtil {
+        function hasValue(value: any): boolean;
+    }
+}
+
+declare module powerbi.visuals {
+    /**
+     * Formats the value using provided format expression
+     * @param value - value to be formatted and converted to string.
+     * @param format - format to be applied if the number shouldn't be abbreviated.
+     * If the number should be abbreviated this string is checked for special characters like $ or % if any
+     */
+    interface ICustomValueFormatter {
+        (value: any, format?: string): string;
+    }
+    interface ICustomValueColumnFormatter {
+        (value: any, column: DataViewMetadataColumn, formatStringProp: DataViewObjectPropertyIdentifier, nullsAreBlank?: boolean): string;
+    }
+    interface ValueFormatterOptions {
+        /** The format string to use. */
+        format?: string;
+        /** The data value. */
+        value?: any;
+        /** The data value. */
+        value2?: any;
+        /** The number of ticks. */
+        tickCount?: any;
+        /** The display unit system to use */
+        displayUnitSystemType?: DisplayUnitSystemType;
+        /** True if we are formatting single values in isolation (e.g. card), as opposed to multiple values with a common base (e.g. chart axes) */
+        formatSingleValues?: boolean;
+        /** True if we want to trim off unnecessary zeroes after the decimal and remove a space before the % symbol */
+        allowFormatBeautification?: boolean;
+        /** Specifies the maximum number of decimal places to show*/
+        precision?: number;
+        /** Detect axis precision based on value */
+        detectAxisPrecision?: boolean;
+        /** Specifies the column type of the data value */
+        columnType?: ValueTypeDescriptor;
+    }
+    interface IValueFormatter {
+        format(value: any): string;
+        displayUnit?: DisplayUnit;
+        options?: ValueFormatterOptions;
+    }
+    /** Captures all locale-specific options used by the valueFormatter. */
+    interface ValueFormatterLocalizationOptions {
+        null: string;
+        true: string;
+        false: string;
+        NaN: string;
+        infinity: string;
+        negativeInfinity: string;
+        /** Returns a beautified form the given format string. */
+        beautify(format: string): string;
+        /** Returns an object describing the given exponent in the current language. */
+        describe(exponent: number): DisplayUnitSystemNames;
+        restatementComma: string;
+        restatementCompoundAnd: string;
+        restatementCompoundOr: string;
+    }
+    module valueFormatter {
+        const DefaultIntegerFormat: string;
+        const DefaultNumericFormat: string;
+        const DefaultDateFormat: string;
+        function getLocalizedString(stringId: string): string;
+        function getFormatMetadata(format: string): powerbi.NumberFormat.NumericFormatMetadata;
+        function setLocaleOptions(options: ValueFormatterLocalizationOptions): void;
+        function createDefaultFormatter(formatString: string, allowFormatBeautification?: boolean): IValueFormatter;
+        /** Creates an IValueFormatter to be used for a range of values. */
+        function create(options: ValueFormatterOptions): IValueFormatter;
+        function format(value: any, format?: string, allowFormatBeautification?: boolean): string;
+        /**
+         * Value formatting function to handle variant measures.
+         * For a Date/Time value within a non-date/time field, it's formatted with the default date/time formatString instead of as a number
+         * @param {any} value Value to be formatted
+         * @param {DataViewMetadataColumn} column Field which the value belongs to
+         * @param {DataViewObjectPropertyIdentifier} formatStringProp formatString Property ID
+         * @param {boolean} nullsAreBlank? Whether to show "(Blank)" instead of empty string for null values
+         * @returns Formatted value
+         */
+        function formatVariantMeasureValue(value: any, column: DataViewMetadataColumn, formatStringProp: DataViewObjectPropertyIdentifier, nullsAreBlank?: boolean): string;
+        function getFormatString(column: DataViewMetadataColumn, formatStringProperty: DataViewObjectPropertyIdentifier, suppressTypeFallback?: boolean): string;
+        /** The returned string will look like 'A, B, ..., and C'  */
+        function formatListAnd(strings: string[]): string;
+        /** The returned string will look like 'A, B, ..., or C' */
+        function formatListOr(strings: string[]): string;
+        function getDisplayUnits(displayUnitSystemType: DisplayUnitSystemType): DisplayUnit[];
+    }
+}
+
 declare module powerbi {
     interface IColorAllocator {
         /** Computes the color corresponding to the provided value. */
-        color(value: number): string;
+        color(value: PrimitiveValue): string;
     }
     interface IColorAllocatorFactory {
         /** Creates a gradient that that transitions between two colors. */
@@ -893,34 +1211,74 @@ declare module powerbi {
         linearGradient3(options: LinearGradient3, splitScales: boolean): IColorAllocator;
     }
 }
+
 declare module powerbi.data {
     interface CompiledDataViewRoleBindMappingWithReduction extends CompiledDataViewRoleBindMapping, HasReductionAlgorithm {
     }
     interface CompiledDataViewRoleForMappingWithReduction extends CompiledDataViewRoleForMapping, HasReductionAlgorithm {
     }
 }
+
 declare module powerbi.data {
     module DataRoleHelper {
         function getMeasureIndexOfRole(grouped: DataViewValueColumnGroup[], roleName: string): number;
         function getCategoryIndexOfRole(categories: DataViewCategoryColumn[], roleName: string): number;
         function hasRole(column: DataViewMetadataColumn, name: string): boolean;
         function hasRoleInDataView(dataView: DataView, name: string): boolean;
+        function hasRoleInValueColumn(valueColumn: DataViewValueColumn, name: string): boolean;
     }
 }
+
 declare module powerbi.data {
-    function createIDataViewCategoricalReader(dataView: any): IDataViewCategoricalReader;
+    function createIDataViewCategoricalReader(dataView: DataView): IDataViewCategoricalReader;
     interface IDataViewCategoricalReader {
         hasCategories(): boolean;
         getCategoryCount(): number;
         getCategoryValues(roleName: string): any;
-        getCategoryValue(categoryIndex: number, roleName: string): any;
+        getCategoryValue(roleName: string, categoryIndex: number): any;
         getCategoryColumn(roleName: string): DataViewCategoryColumn;
+        getCategoryMetadataColumn(roleName: string): DataViewMetadataColumn;
+        getCategoryColumnIdentityFields(roleName: string): powerbi.data.ISQExpr[];
+        getCategoryDisplayName(roleName: string): string;
         hasCompositeCategories(): boolean;
         hasCategoryWithRole(roleName: string): boolean;
-        getCategoryObjects(categoryIndex: number, roleName: string): DataViewObjects;
+        getCategoryObjects(roleName: string, categoryIndex: number): DataViewObjects;
         hasValues(roleName: string): boolean;
-        getValues(roleName: string, seriesIndex?: number): any[];
+        hasHighlights(roleName: string): boolean;
+        /**
+         * Obtains the value for the given role name, category index, and series index.
+         *
+         * Note: in cases where have multiple values in a role where the multiple values
+         * are not being used to create a static series, the first is obtained. (this is
+         * a rare case)
+         */
         getValue(roleName: string, categoryIndex: number, seriesIndex?: number): any;
+        /**
+         * Obtains the highlighted value for the given role name, category index, and series index.
+         *
+         * Note: in cases where have multiple values in a role where the multiple values
+         * are not being used to create a static series, the first is obtained. (this is
+         * a rare case)
+         */
+        getHighlight(roleName: string, categoryIndex: number, seriesIndex?: number): any;
+        /**
+         * Obtains all the values for the given role name, category index, and series index, drawing
+         * from each of the value columns at that intersection.  Used when you have multiple
+         * values in a role that are not conceptually a static series.
+         */
+        getAllValuesForRole(roleName: string, categoryIndex: number, seriesIndex?: number): any[];
+        /**
+        * Obtains all meta data for the given role name, category index, and series index, drawing
+        * from each of the value columns at that intersection.  Used when you have multiple
+        * values in a role that are not conceptually a static series.
+        */
+        getAllValueMetadataColumnsForRole(roleName: string, seriesIndex?: number): DataViewMetadataColumn[];
+        /**
+         * Obtains all the highlight values for the given role name, category index, and series index, drawing
+         * from each of the value columns at that intersection.  Used when you have multiple
+         * values in a role that are not conceptually a static series.
+         */
+        getAllHighlightsForRole(roleName: string, categoryIndex: number, seriesIndex?: number): any[];
         /**
          * Obtains the first non-null value for the given role name and category index.
          * It should mainly be used for values that are expected to be the same across
@@ -929,248 +1287,64 @@ declare module powerbi.data {
         getFirstNonNullValueForCategory(roleName: string, categoryIndex: number): any;
         getMeasureQueryName(roleName: string): string;
         getValueColumn(roleName: string, seriesIndex?: number): DataViewValueColumn;
+        getValueMetadataColumn(roleName: string, seriesIndex?: number): DataViewMetadataColumn;
+        getValueDisplayName(roleName: string, seriesIndex?: number): string;
         hasDynamicSeries(): boolean;
-        getSeriesCount(): number;
+        /**
+         * Get the series count.  This requires a value role name for cases where you may
+         * have a static series, but is not required if the only series you expect are dynamic
+         * or single series.
+         *
+         * @param valueRoleName The role of the value for which a static series may exist
+         */
+        getSeriesCount(valueRoleName?: string): number;
         getSeriesObjects(seriesIndex: number): DataViewObjects;
-        getSeriesColumn(seriesIndex: number): DataViewValueColumn;
-        getSeriesColumns(): DataViewValueColumns;
-        getSeriesSource(): DataViewMetadataColumn;
-        getSeriesColumnIdentifier(): powerbi.data.ISQExpr[];
+        getSeriesValueColumns(): DataViewValueColumns;
+        getSeriesValueColumnGroup(seriesIndex: number): DataViewValueColumnGroup;
+        getSeriesMetadataColumn(): DataViewMetadataColumn;
+        getSeriesColumnIdentityFields(): powerbi.data.ISQExpr[];
         getSeriesName(seriesIndex: number): PrimitiveValue;
         getSeriesDisplayName(): string;
+        getStaticObjects(): DataViewObjects;
     }
 }
+
 declare module powerbi.data {
-    /** Defines the values for particular objects. */
-    interface DataViewObjectDefinitions {
-        [objectName: string]: DataViewObjectDefinition[];
-    }
-    interface DataViewObjectDefinition {
-        selector?: Selector;
-        properties: DataViewObjectPropertyDefinitions;
-    }
-    interface DataViewObjectPropertyDefinitions {
-        [name: string]: DataViewObjectPropertyDefinition;
-    }
-    type DataViewObjectPropertyDefinition = SQExpr | StructuralObjectDefinition;
-    module DataViewObjectDefinitions {
-        /** Creates or reuses a DataViewObjectDefinition for matching the given objectName and selector within the defns. */
-        function ensure(defns: DataViewObjectDefinitions, objectName: string, selector: Selector): DataViewObjectDefinition;
-        function deleteProperty(defns: DataViewObjectDefinitions, objectName: string, selector: Selector, propertyName: string): void;
-        function setValue(defns: DataViewObjectDefinitions, propertyId: DataViewObjectPropertyIdentifier, selector: Selector, value: DataViewObjectPropertyDefinition): void;
-        function getValue(defns: DataViewObjectDefinitions, propertyId: DataViewObjectPropertyIdentifier, selector: Selector): DataViewObjectPropertyDefinition;
-        function getPropertyContainer(defns: DataViewObjectDefinitions, propertyId: DataViewObjectPropertyIdentifier, selector: Selector): DataViewObjectPropertyDefinitions;
-        function getObjectDefinition(defns: DataViewObjectDefinitions, objectName: string, selector: Selector): DataViewObjectDefinition;
-        function propertiesAreEqual(a: DataViewObjectPropertyDefinition, b: DataViewObjectPropertyDefinition): boolean;
-        function allPropertiesAreEqual(a: DataViewObjectPropertyDefinitions, b: DataViewObjectPropertyDefinitions): boolean;
-        function encodePropertyValue(value: DataViewPropertyValue, valueTypeDescriptor: ValueTypeDescriptor): DataViewObjectPropertyDefinition;
-        function clone(original: DataViewObjectDefinitions): DataViewObjectDefinitions;
-    }
-    module DataViewObjectDefinition {
-        function deleteSingleProperty(defn: DataViewObjectDefinition, propertyName: string): void;
+    module DataViewConcatenateCategoricalColumns {
+        function detectAndApply(dataView: DataView, objectDescriptors: DataViewObjectDescriptors, roleMappings: DataViewMapping[], projectionOrdering: DataViewProjectionOrdering, selects: DataViewSelectTransform[], projectionActiveItems: DataViewProjectionActiveItems): DataView;
+        /** For applying concatenation to the DataViewCategorical that is the data for one of the frames in a play chart. */
+        function applyToPlayChartCategorical(metadata: DataViewMetadata, objectDescriptors: DataViewObjectDescriptors, categoryRoleName: string, categorical: DataViewCategorical): DataView;
     }
 }
-declare module powerbi.data {
-    module DataViewObjectDescriptors {
-        /** Attempts to find the format string property.  This can be useful for upgrade and conversion. */
-        function findFormatString(descriptors: DataViewObjectDescriptors): DataViewObjectPropertyIdentifier;
-        /** Attempts to find the filter property.  This can be useful for propagating filters from one visual to others. */
-        function findFilterOutput(descriptors: DataViewObjectDescriptors): DataViewObjectPropertyIdentifier;
-        /** Attempts to find the default value property.  This can be useful for propagating schema default value. */
-        function findDefaultValue(descriptors: DataViewObjectDescriptors): DataViewObjectPropertyIdentifier;
-    }
-}
-declare module powerbi.data {
-    interface DataViewObjectDefinitionsByRepetition {
-        metadataOnce?: DataViewObjectDefinitionsForSelector;
-        userDefined?: DataViewObjectDefinitionsForSelector[];
-        metadata?: DataViewObjectDefinitionsForSelector[];
-        data: DataViewObjectDefinitionsForSelectorWithRule[];
-    }
-    interface DataViewObjectDefinitionsForSelector {
-        selector?: Selector;
-        objects: DataViewNamedObjectDefinition[];
-    }
-    interface DataViewObjectDefinitionsForSelectorWithRule extends DataViewObjectDefinitionsForSelector {
-        rules?: RuleEvaluation[];
-    }
-    interface DataViewNamedObjectDefinition {
-        name: string;
-        properties: DataViewObjectPropertyDefinitions;
-    }
-    module DataViewObjectEvaluationUtils {
-        function evaluateDataViewObjects(evalContext: IEvalContext, objectDescriptors: DataViewObjectDescriptors, objectDefns: DataViewNamedObjectDefinition[]): DataViewObjects;
-        function groupObjectsBySelector(objectDefinitions: DataViewObjectDefinitions): DataViewObjectDefinitionsByRepetition;
-        function addImplicitObjects(objectsForAllSelectors: DataViewObjectDefinitionsByRepetition, objectDescriptors: DataViewObjectDescriptors, columns: DataViewMetadataColumn[], selectTransforms: DataViewSelectTransform[]): void;
-    }
-}
-declare module powerbi.data {
-    /** Responsible for evaluating object property expressions to be applied at various scopes in a DataView. */
-    module DataViewObjectEvaluator {
-        function run(evalContext: IEvalContext, objectDescriptor: DataViewObjectDescriptor, propertyDefinitions: DataViewObjectPropertyDefinitions): DataViewObject;
-        /** Note: Exported for testability */
-        function evaluateProperty(evalContext: IEvalContext, propertyDescriptor: DataViewObjectPropertyDescriptor, propertyDefinition: DataViewObjectPropertyDefinition): any;
-    }
-}
+
 declare module powerbi {
-    module DataViewObjects {
-        /** Gets the value of the given object/property pair. */
-        function getValue<T>(objects: DataViewObjects, propertyId: DataViewObjectPropertyIdentifier, defaultValue?: T): T;
-        /** Gets an object from objects. */
-        function getObject(objects: DataViewObjects, objectName: string, defaultValue?: DataViewObject): DataViewObject;
-        /** Gets a map of user-defined objects. */
-        function getUserDefinedObjects(objects: DataViewObjects, objectName: string): DataViewObjectMap;
-        /** Gets the solid color from a fill property. */
-        function getFillColor(objects: DataViewObjects, propertyId: DataViewObjectPropertyIdentifier, defaultColor?: string): string;
-        /** Returns true if the given object represents a collection of user-defined objects */
-        function isUserDefined(objectOrMap: DataViewObject | DataViewObjectMap): boolean;
+    const enum RoleItemContext {
+        CategoricalValue = 0,
+        CategoricalValueGroup = 1,
     }
-    module DataViewObject {
-        function getValue<T>(object: DataViewObject, propertyName: string, defaultValue?: T): T;
-        /** Gets the solid color from a fill property using only a propertyName */
-        function getFillColorByPropertyName(objects: DataViewObjects, propertyName: string, defaultColor?: string): string;
+    interface IDataViewMappingVisitor {
+        visitRole(role: string, context?: RoleItemContext): void;
+        visitReduction?(reductionAlgorithm?: ReductionAlgorithm): void;
     }
-}
-declare module powerbi.data {
-    module DataViewPivotCategorical {
+    module DataViewMapping {
+        function visitMapping(mapping: DataViewMapping, visitor: IDataViewMappingVisitor): void;
+        function visitCategorical(mapping: DataViewCategoricalMapping, visitor: IDataViewMappingVisitor): void;
+        function visitCategoricalCategories(mapping: DataViewRoleMappingWithReduction | DataViewListRoleMappingWithReduction, visitor: IDataViewMappingVisitor): void;
+        function visitCategoricalValues(mapping: DataViewRoleMapping | DataViewGroupedRoleMapping | DataViewListRoleMapping, visitor: IDataViewMappingVisitor): void;
+        function visitTable(mapping: DataViewTableMapping, visitor: IDataViewMappingVisitor): void;
         /**
-         * Pivots categories in a categorical DataView into valueGroupings.
-         * This is akin to a mathematical matrix transpose.
-         */
-        function apply(dataView: DataView): DataView;
-    }
-}
-declare module powerbi.data {
-    module DataViewPivotMatrix {
-        /** Pivots row hierarchy members in a matrix DataView into column hierarchy. */
-        function apply(dataViewMatrix: DataViewMatrix, context: MatrixTransformationContext): void;
-        function cloneTree(node: DataViewMatrixNode): DataViewMatrixNode;
-        function cloneTreeExecuteOnLeaf(node: DataViewMatrixNode, callback?: (node: DataViewMatrixNode) => void): DataViewMatrixNode;
-    }
-}
-declare module powerbi.data {
-    module DataViewSelfCrossJoin {
-        /**
-         * Returns a new DataView based on the original, with a single DataViewCategorical category that is "cross joined"
-         * to itself as a value grouping.
-         * This is the mathematical equivalent of taking an array and turning it into an identity matrix.
-         */
-        function apply(dataView: DataView): DataView;
-    }
-}
-declare module powerbi.data {
-    module DataViewPivotCategoricalToPrimaryGroups {
-        /**
-         * If mapping requests cross axis data reduction and the binding has secondary grouping, mutates the binding to
-         * pivot the secondary before the primary.
-         */
-        function pivotBinding(binding: DataShapeBinding, allMappings: CompiledDataViewMapping[], finalMapping: CompiledDataViewMapping, defaultDataVolume: number): void;
-        function unpivotResult(oldDataView: DataView, selects: DataViewSelectTransform[], dataViewMappings: DataViewMapping[]): DataView;
-    }
-}
-declare module powerbi.data {
-    import INumberDictionary = jsCommon.INumberDictionary;
-    interface DataViewTransformApplyOptions {
-        prototype: DataView;
-        objectDescriptors: DataViewObjectDescriptors;
-        dataViewMappings?: DataViewMapping[];
-        transforms: DataViewTransformActions;
-        colorAllocatorFactory: IColorAllocatorFactory;
-        dataRoles: VisualDataRole[];
-    }
-    /** Describes the Transform actions to be done to a prototype DataView. */
-    interface DataViewTransformActions {
-        /** Describes transform metadata for each semantic query select item, as the arrays align, by index. */
-        selects?: DataViewSelectTransform[];
-        /** Describes the DataViewObject definitions. */
-        objects?: DataViewObjectDefinitions;
-        /** Describes the splitting of a single input DataView into multiple DataViews. */
-        splits?: DataViewSplitTransform[];
-        /** Describes the order of selects (referenced by query index) in each role. */
-        projectionOrdering?: DataViewProjectionOrdering;
-    }
-    interface DataViewSplitTransform {
-        selects: INumberDictionary<boolean>;
-    }
-    interface DataViewProjectionOrdering {
-        [roleName: string]: number[];
-    }
-    interface MatrixTransformationContext {
-        rowHierarchyRewritten: boolean;
-        columnHierarchyRewritten: boolean;
-        hierarchyTreesRewritten: boolean;
-    }
-    const enum StandardDataViewKinds {
-        None = 0,
-        Categorical = 1,
-        Matrix = 2,
-        Single = 4,
-        Table = 8,
-        Tree = 16,
-    }
-    module DataViewTransform {
-        function apply(options: DataViewTransformApplyOptions): DataView[];
-        function transformObjects(dataView: DataView, targetDataViewKinds: StandardDataViewKinds, objectDescriptors: DataViewObjectDescriptors, objectDefinitions: DataViewObjectDefinitions, selectTransforms: DataViewSelectTransform[], colorAllocatorFactory: IColorAllocatorFactory): void;
-        function createValueColumns(values?: DataViewValueColumn[], valueIdentityFields?: SQExpr[], source?: DataViewMetadataColumn): DataViewValueColumns;
-    }
-}
-declare module powerbi.data {
-    interface DataViewRegressionRunOptions {
-        dataViewMappings: DataViewMapping[];
-        transformedDataViews: DataView[];
-        dataRoles: VisualDataRole[];
-        objectDescriptors: DataViewObjectDescriptors;
-        objectDefinitions: DataViewObjectDefinitions;
-        colorAllocatorFactory: IColorAllocatorFactory;
-        transformSelects: DataViewSelectTransform[];
-        dataView: DataView;
-    }
-    module DataViewRegression {
-        const regressionYQueryName: string;
-        function run(options: DataViewRegressionRunOptions): DataView[];
-        /**
-         * This function will compute the linear regression algorithm on the sourceDataView and create a new dataView.
-         * It works on scalar axis only.
-         * The algorithm is as follows
+         * For visiting DataViewMatrixMapping.rows, DataViewMatrixMapping.columns, or DataViewMatrixMapping.values.
          *
-         * 1. Find the cartesian X and Y roles and the columns that correspond to those roles
-         * 2. Order the X-Y value pairs by the X values
-         * 3. Linearly map dates to their respective times and normalize since regression cannot be directly computed on dates
-         * 4. Compute the actual regression:
-         *    i.   xBar: average of X values, yBar: average of Y values
-         *    ii.  ssXX: sum of squares of X values = Sum(xi - xBar)^2
-         *    iii. ssXY: sum of squares of X and Y values  = Sum((xi - xBar)(yi - yBar)
-         *    iv.  Slope: ssXY / ssXX
-         *    v.   Intercept: yBar - xBar * slope
-         * 5. Compute the X and Y points for regression line using Y = Slope * X + Intercept
-         * 6. Create the new dataView using the points computed above
+         * @param mapping Can be one of DataViewMatrixMapping.rows, DataViewMatrixMapping.columns, or DataViewMatrixMapping.values.
+         * @param visitor The visitor.
          */
-        function linearRegressionTransform(sourceDataView: DataView, dataRoles: VisualDataRole[], regressionDataViewMapping: DataViewMapping, objectDescriptors: DataViewObjectDescriptors, objectDefinitions: DataViewObjectDefinitions, colorAllocatorFactory: IColorAllocatorFactory): DataView;
+        function visitMatrixItems(mapping: DataViewRoleForMappingWithReduction | DataViewListRoleMappingWithReduction, visitor: IDataViewMappingVisitor): void;
+        function visitTreeNodes(mapping: DataViewRoleForMappingWithReduction, visitor: IDataViewMappingVisitor): void;
+        function visitTreeValues(mapping: DataViewRoleForMapping, visitor: IDataViewMappingVisitor): void;
+        function visitGrouped(mapping: DataViewGroupedRoleMapping, visitor: IDataViewMappingVisitor): void;
     }
 }
-declare module powerbi.data {
-    import RoleKindByQueryRef = DataViewAnalysis.RoleKindByQueryRef;
-    interface DataViewSelectTransform {
-        displayName?: string;
-        queryName?: string;
-        format?: string;
-        type?: ValueType;
-        roles?: {
-            [roleName: string]: boolean;
-        };
-        kpi?: DataViewKpiColumnMetadata;
-        sort?: SortDirection;
-        expr?: SQExpr;
-        /** Describes the default value applied to a column, if any. */
-        defaultValue?: DefaultValueDefinition;
-    }
-    module DataViewSelectTransform {
-        /** Convert selection info to projections */
-        function projectionsFromSelects(selects: DataViewSelectTransform[]): QueryProjectionsByRole;
-        /** Use selections and metadata to fashion query role kinds */
-        function createRoleKindFromMetadata(selects: DataViewSelectTransform[], metadata: DataViewMetadata): RoleKindByQueryRef;
-    }
-}
+
 declare module powerbi.data {
     interface DataViewNormalizeValuesApplyOptions {
         dataview: DataView;
@@ -1210,10 +1384,230 @@ declare module powerbi.data {
         function normalizeVariant<T>(object: T, key: string | number, columnIndex: number, valueFilter: IValueFilter): T;
     }
 }
+
+declare module powerbi {
+    module DataViewObjects {
+        /** Gets the value of the given object/property pair. */
+        function getValue<T>(objects: DataViewObjects, propertyId: DataViewObjectPropertyIdentifier, defaultValue?: T): T;
+        /** Gets an object from objects. */
+        function getObject(objects: DataViewObjects, objectName: string, defaultValue?: DataViewObject): DataViewObject;
+        /** Gets a map of user-defined objects. */
+        function getUserDefinedObjects(objects: DataViewObjects, objectName: string): DataViewObjectMap;
+        /** Gets the solid color from a fill property. */
+        function getFillColor(objects: DataViewObjects, propertyId: DataViewObjectPropertyIdentifier, defaultColor?: string): string;
+        /** Returns true if the given object represents a collection of user-defined objects */
+        function isUserDefined(objectOrMap: DataViewObject | DataViewObjectMap): boolean;
+    }
+    module DataViewObject {
+        function getValue<T>(object: DataViewObject, propertyName: string, defaultValue?: T): T;
+        /** Gets the solid color from a fill property using only a propertyName */
+        function getFillColorByPropertyName(objects: DataViewObjects, propertyName: string, defaultColor?: string): string;
+    }
+}
+
+declare module powerbi.data {
+    /** Defines the values for particular objects. */
+    interface DataViewObjectDefinitions {
+        [objectName: string]: DataViewObjectDefinition[];
+    }
+    interface DataViewObjectDefinition {
+        selector?: Selector;
+        properties: DataViewObjectPropertyDefinitions;
+    }
+    interface DataViewObjectPropertyDefinitions {
+        [name: string]: DataViewObjectPropertyDefinition;
+    }
+    type DataViewObjectPropertyDefinition = SQExpr | StructuralObjectDefinition;
+    module DataViewObjectDefinitions {
+        /** Creates or reuses a DataViewObjectDefinition for matching the given objectName and selector within the defns. */
+        function ensure(defns: DataViewObjectDefinitions, objectName: string, selector: Selector): DataViewObjectDefinition;
+        function deleteProperty(defns: DataViewObjectDefinitions, objectName: string, selector: Selector, propertyName: string): void;
+        function setValue(defns: DataViewObjectDefinitions, propertyId: DataViewObjectPropertyIdentifier, selector: Selector, value: DataViewObjectPropertyDefinition): void;
+        function getValue(defns: DataViewObjectDefinitions, propertyId: DataViewObjectPropertyIdentifier, selector: Selector): DataViewObjectPropertyDefinition;
+        function getPropertyContainer(defns: DataViewObjectDefinitions, propertyId: DataViewObjectPropertyIdentifier, selector: Selector): DataViewObjectPropertyDefinitions;
+        function getObjectDefinition(defns: DataViewObjectDefinitions, objectName: string, selector: Selector): DataViewObjectDefinition;
+        function propertiesAreEqual(a: DataViewObjectPropertyDefinition, b: DataViewObjectPropertyDefinition): boolean;
+        function allPropertiesAreEqual(a: DataViewObjectPropertyDefinitions, b: DataViewObjectPropertyDefinitions): boolean;
+        function encodePropertyValue(value: DataViewPropertyValue, valueTypeDescriptor: ValueTypeDescriptor): DataViewObjectPropertyDefinition;
+        function clone(original: DataViewObjectDefinitions): DataViewObjectDefinitions;
+    }
+    module DataViewObjectDefinition {
+        function deleteSingleProperty(defn: DataViewObjectDefinition, propertyName: string): void;
+    }
+}
+
+declare module powerbi.data {
+    module DataViewObjectDescriptors {
+        /** Attempts to find the format string property.  This can be useful for upgrade and conversion. */
+        function findFormatString(descriptors: DataViewObjectDescriptors): DataViewObjectPropertyIdentifier;
+        /** Attempts to find the filter property.  This can be useful for propagating filters from one visual to others. */
+        function findFilterOutput(descriptors: DataViewObjectDescriptors): DataViewObjectPropertyIdentifier;
+        /** Attempts to find the self filter property. */
+        function findSelfFilter(descriptors: DataViewObjectDescriptors): DataViewObjectPropertyIdentifier;
+        /** Attempts to find the self filter enabled property. */
+        function findSelfFilterEnabled(descriptors: DataViewObjectDescriptors): DataViewObjectPropertyIdentifier;
+        /** Attempts to find the default value property.  This can be useful for propagating schema default value. */
+        function findDefaultValue(descriptors: DataViewObjectDescriptors): DataViewObjectPropertyIdentifier;
+    }
+}
+
+declare module powerbi.data {
+    interface DataViewObjectDefinitionsByRepetition {
+        metadataOnce?: DataViewObjectDefinitionsForSelector;
+        userDefined?: DataViewObjectDefinitionsForSelector[];
+        metadata?: DataViewObjectDefinitionsForSelector[];
+        data: DataViewObjectDefinitionsForSelectorWithRule[];
+    }
+    interface DataViewObjectDefinitionsForSelector {
+        selector?: Selector;
+        objects: DataViewNamedObjectDefinition[];
+    }
+    interface DataViewObjectDefinitionsForSelectorWithRule extends DataViewObjectDefinitionsForSelector {
+        rules?: RuleEvaluation[];
+    }
+    interface DataViewNamedObjectDefinition {
+        name: string;
+        properties: DataViewObjectPropertyDefinitions;
+    }
+    module DataViewObjectEvaluationUtils {
+        function evaluateDataViewObjects(evalContext: IEvalContext, objectDescriptors: DataViewObjectDescriptors, objectDefns: DataViewNamedObjectDefinition[]): DataViewObjects;
+        function groupObjectsBySelector(objectDefinitions: DataViewObjectDefinitions): DataViewObjectDefinitionsByRepetition;
+        function addImplicitObjects(objectsForAllSelectors: DataViewObjectDefinitionsByRepetition, objectDescriptors: DataViewObjectDescriptors, columns: DataViewMetadataColumn[], selectTransforms: DataViewSelectTransform[]): void;
+    }
+}
+
+declare module powerbi.data {
+    /** Responsible for evaluating object property expressions to be applied at various scopes in a DataView. */
+    module DataViewObjectEvaluator {
+        function run(evalContext: IEvalContext, objectDescriptor: DataViewObjectDescriptor, propertyDefinitions: DataViewObjectPropertyDefinitions): DataViewObject;
+        /** Note: Exported for testability */
+        function evaluateProperty(evalContext: IEvalContext, propertyDescriptor: DataViewObjectPropertyDescriptor, propertyDefinition: DataViewObjectPropertyDefinition): any;
+    }
+}
+declare module powerbi.data {
+    /** Responsible for evaluating and setting DataViewCategorical's values grouped() function. */
+    module DataViewCategoricalEvalGrouped {
+        function apply(categorical: DataViewCategorical): void;
+    }
+}
+
+declare module powerbi.data {
+    module DataViewPivotCategorical {
+        /**
+         * Pivots categories in a categorical DataView into valueGroupings.
+         * This is akin to a mathematical matrix transpose.
+         */
+        function apply(dataView: DataView): DataView;
+    }
+}
+
+declare module powerbi.data {
+    module DataViewPivotMatrix {
+        /** Pivots row hierarchy members in a matrix DataView into column hierarchy. */
+        function apply(dataViewMatrix: DataViewMatrix, context: MatrixTransformationContext): void;
+        function cloneTree(node: DataViewMatrixNode): DataViewMatrixNode;
+        function cloneTreeExecuteOnLeaf(node: DataViewMatrixNode, callback?: (node: DataViewMatrixNode) => void): DataViewMatrixNode;
+    }
+}
+
+declare module powerbi.data {
+    module DataViewSelfCrossJoin {
+        /**
+         * Returns a new DataView based on the original, with a single DataViewCategorical category that is "cross joined"
+         * to itself as a value grouping.
+         * This is the mathematical equivalent of taking an array and turning it into an identity matrix.
+         */
+        function apply(dataView: DataView): DataView;
+    }
+}
+
+declare module powerbi.data {
+    module DataViewPivotCategoricalToPrimaryGroups {
+        /**
+         * If mapping requests cross axis data reduction and the binding has secondary grouping, mutates the binding to
+         * pivot the secondary before the primary.
+         */
+        function pivotBinding(binding: DataShapeBinding, allMappings: CompiledDataViewMapping[], finalMapping: CompiledDataViewMapping, defaultDataVolume: number): void;
+        function unpivotResult(oldDataView: DataView, selects: DataViewSelectTransform[], dataViewMappings: DataViewMapping[], projectionActiveItems: DataViewProjectionActiveItems): DataView;
+    }
+}
+declare module powerbi.data {
+    import INumberDictionary = jsCommon.INumberDictionary;
+    /** Responsible for removing selects from the DataView. */
+    module DataViewRemoveSelects {
+        function apply(dataView: DataView, targetDataViewKinds: StandardDataViewKinds, selectsToInclude: INumberDictionary<boolean>): void;
+    }
+}
+declare module powerbi.data {
+    import INumberDictionary = jsCommon.INumberDictionary;
+    interface DataViewTransformApplyOptions {
+        prototype: DataView;
+        objectDescriptors: DataViewObjectDescriptors;
+        dataViewMappings?: DataViewMapping[];
+        transforms: DataViewTransformActions;
+        colorAllocatorFactory: IColorAllocatorFactory;
+        dataRoles: VisualDataRole[];
+    }
+    /** Describes the Transform actions to be done to a prototype DataView. */
+    interface DataViewTransformActions {
+        /** Describes transform metadata for each semantic query select item, as the arrays align, by index. */
+        selects?: DataViewSelectTransform[];
+        /** Describes the DataViewObject definitions. */
+        objects?: DataViewObjectDefinitions;
+        /** Describes the splitting of a single input DataView into multiple DataViews. */
+        splits?: DataViewSplitTransform[];
+        /** Describes the projection metadata which includes projection ordering and active items. */
+        roles?: DataViewRoleTransformMetadata;
+    }
+    interface DataViewSplitTransform {
+        selects: INumberDictionary<boolean>;
+    }
+    interface DataViewProjectionOrdering {
+        [roleName: string]: number[];
+    }
+    interface DataViewProjectionActiveItemInfo {
+        queryRef: string;
+        /** Describes if the active item should be ignored in concatenation.
+            If the active item has a drill filter, it will not be used in concatenation.
+            If the value of suppressConcat is true, the activeItem will be ommitted from concatenation. */
+        suppressConcat?: boolean;
+    }
+    interface DataViewProjectionActiveItems {
+        [roleName: string]: DataViewProjectionActiveItemInfo[];
+    }
+    interface DataViewRoleTransformMetadata {
+        /** Describes the order of selects (referenced by query index) in each role. */
+        ordering?: DataViewProjectionOrdering;
+        /** Describes the active items in each role. */
+        activeItems?: DataViewProjectionActiveItems;
+    }
+    interface MatrixTransformationContext {
+        rowHierarchyRewritten: boolean;
+        columnHierarchyRewritten: boolean;
+        hierarchyTreesRewritten: boolean;
+    }
+    const enum StandardDataViewKinds {
+        None = 0,
+        Categorical = 1,
+        Matrix = 2,
+        Single = 4,
+        Table = 8,
+        Tree = 16,
+    }
+    module DataViewTransform {
+        function apply(options: DataViewTransformApplyOptions): DataView[];
+        function forEachNodeAtLevel(node: DataViewMatrixNode, targetLevel: number, callback: (node: DataViewMatrixNode) => void): void;
+        function transformObjects(dataView: DataView, targetDataViewKinds: StandardDataViewKinds, objectDescriptors: DataViewObjectDescriptors, objectDefinitions: DataViewObjectDefinitions, selectTransforms: DataViewSelectTransform[], colorAllocatorFactory: IColorAllocatorFactory): void;
+        function createValueColumns(values?: DataViewValueColumn[], valueIdentityFields?: SQExpr[], source?: DataViewMetadataColumn): DataViewValueColumns;
+        function setGrouped(values: DataViewValueColumns, groupedResult?: DataViewValueColumnGroup[]): void;
+    }
+}
+
 declare module powerbi.data {
     function createDisplayNameGetter(displayNameKey: string): (IStringResourceProvider) => string;
     function getDisplayName(displayNameGetter: data.DisplayNameGetter, resourceProvider: jsCommon.IStringResourceProvider): string;
 }
+
 declare module powerbi.data {
     /** Represents a data reader. */
     interface IDataReader {
@@ -1260,21 +1654,63 @@ declare module powerbi.data {
         additionalProjections?: AdditionalQueryProjection[];
         highlightFilter?: SemanticFilter;
         restartToken?: RestartToken;
-        viewport?: IViewport;
+        dataWindow?: QueryGeneratorDataWindow;
     }
     interface AdditionalQueryProjection {
         queryName: string;
         selector: Selector;
+        aggregates?: ProjectionAggregates;
+    }
+    interface ProjectionAggregates {
+        min?: boolean;
+        max?: boolean;
+        percentiles?: ProjectionPercentileAggregate[];
+    }
+    interface ProjectionPercentileAggregate {
+        exclusive?: boolean;
+        k: number;
     }
     interface QueryGeneratorResult {
         command: DataReaderQueryCommand;
         splits?: DataViewSplitTransform[];
+        /**
+         * If the query generator needs to rewrite the input query, this property will contain information about the important changes.
+         *
+         * Any rewrite done by query generator should be internal to the particular query generator, but in some rare cases this information
+         * is needed in order for other components to correctly consume the query result.
+         */
+        queryRewrites?: QueryRewriteRecordContainer[];
+    }
+    /**
+     * In each instance of QueryRewriteRecordContainer, exactly one of the optional properties will be populated with change record.
+     */
+    interface QueryRewriteRecordContainer {
+        selectExprAdded?: QueryRewriteSelectExprAddedRecord;
+        projectionQueryRefChanged?: QueryRewriteProjectionQueryRefChangedRecord;
+    }
+    /** Indicates a new SQExpr got added at a particular index. */
+    interface QueryRewriteSelectExprAddedRecord {
+        selectIndex: number;
+        namedSQExpr: NamedSQExpr;
+    }
+    /** Indicates a queryRef in the query projection for a particular role got changed. */
+    interface QueryRewriteProjectionQueryRefChangedRecord {
+        /** The role for which a queryRef in the query projection got changed. */
+        role: string;
+        /** The original queryRef. */
+        oldQueryRef: string;
+        /** The new, internal queryRef. */
+        newInternalQueryRef: string;
     }
     interface DataReaderTransformResult {
         dataView?: DataView;
         restartToken?: RestartToken;
         error?: IClientError;
         warning?: IClientWarning;
+        /** A value of true in this property indicates that the DataReaderData object from which this result is generated should not get persisted as contract cache nor server cache. */
+        disallowPersisting?: boolean;
+    }
+    interface QueryGeneratorDataWindow {
     }
     interface RestartToken {
     }
@@ -1296,7 +1732,9 @@ declare module powerbi.data {
         dataSource?: DataReaderDataSource;
         command: DataReaderCommand;
         allowCache?: boolean;
+        allowClientSideFilters?: boolean;
         cacheResponseOnServer?: boolean;
+        ignoreViewportForCache?: boolean;
     }
     interface FederatedConceptualSchemaReaderOptions {
         dataSources: ConceptualSchemaReaderDataSource[];
@@ -1305,6 +1743,8 @@ declare module powerbi.data {
         id: number;
         /** Specifies the name used in Semantic Queries to reference this DataSource. */
         name: string;
+        /** Specifies the type of IDataReaderPlugin. */
+        type?: string;
     }
     interface FederatedConceptualSchemaResponse {
         data: FederatedConceptualSchemaData;
@@ -1324,6 +1764,7 @@ declare module powerbi.data {
         promiseFactory(): IPromiseFactory;
     }
 }
+
 declare module powerbi {
     /** Enumeration of DateTimeUnits */
     enum DateTimeUnit {
@@ -1358,64 +1799,110 @@ declare module powerbi {
         dateFormatString(unit: DateTimeUnit): string;
     }
 }
+
 declare module powerbi.data {
     /** Represents common expression patterns for 'field' expressions such as columns, column aggregates, measures, etc. */
     interface FieldExprPattern {
         column?: FieldExprColumnPattern;
         columnAggr?: FieldExprColumnAggrPattern;
-        columnHierarchyLevelVariation?: FieldExprColumnHierarchyLevelVariation;
+        columnHierarchyLevelVariation?: FieldExprColumnHierarchyLevelVariationPattern;
+        entity?: FieldExprEntityPattern;
         entityAggr?: FieldExprEntityAggrPattern;
+        hierarchy?: FieldExprHierarchyPattern;
         hierarchyLevel?: FieldExprHierarchyLevelPattern;
         hierarchyLevelAggr?: FieldExprHierarchyLevelAggrPattern;
-        hierarchy?: FieldExprHierarchyPattern;
         measure?: FieldExprMeasurePattern;
+        percentile?: FieldExprPercentilePattern;
+        percentOfGrandTotal?: FieldExprPercentOfGrandTotalPattern;
+        selectRef?: FieldExprSelectRefPattern;
     }
-    interface FieldExprEntityItemPattern {
+    /** By design there is no default, no-op visitor. Components concerned with patterns need to be aware of all patterns as they are added. */
+    interface IFieldExprPatternVisitor<T> {
+        visitColumn(column: FieldExprColumnPattern): T;
+        visitColumnAggr(columnAggr: FieldExprColumnAggrPattern): T;
+        visitColumnHierarchyLevelVariation(columnHierarchyLevelVariation: FieldExprColumnHierarchyLevelVariationPattern): T;
+        visitEntity(entity: FieldExprEntityPattern): T;
+        visitEntityAggr(entityAggr: FieldExprEntityAggrPattern): T;
+        visitHierarchy(hierarchy: FieldExprHierarchyPattern): T;
+        visitHierarchyLevel(hierarchyLevel: FieldExprHierarchyLevelPattern): T;
+        visitHierarchyLevelAggr(hierarchyLevelAggr: FieldExprHierarchyLevelAggrPattern): T;
+        visitMeasure(measure: FieldExprMeasurePattern): T;
+        visitPercentile(percentile: FieldExprPercentilePattern): T;
+        visitPercentOfGrandTotal(percentOfGrandTotal: FieldExprPercentOfGrandTotalPattern): T;
+        visitSelectRef(selectRef: FieldExprSelectRefPattern): T;
+    }
+    interface FieldExprEntityPattern {
         schema: string;
         entity: string;
         entityVar?: string;
     }
-    interface FieldExprPropertyPattern extends FieldExprEntityItemPattern {
+    interface FieldExprEntityItemPattern extends FieldExprEntityPattern {
+    }
+    interface FieldExprEntityPropertyPattern extends FieldExprEntityItemPattern {
         name: string;
     }
-    type FieldExprColumnPattern = FieldExprPropertyPattern;
+    type FieldExprColumnPattern = FieldExprEntityPropertyPattern;
+    type FieldExprMeasurePattern = FieldExprEntityPropertyPattern;
+    type FieldExprHierarchyPattern = FieldExprEntityPropertyPattern;
+    type FieldExprPropertyPattern = FieldExprColumnPattern | FieldExprMeasurePattern | FieldExprHierarchyPattern;
+    interface FieldExprEntityAggrPattern extends FieldExprEntityPattern {
+        aggregate: QueryAggregateFunction;
+    }
     interface FieldExprColumnAggrPattern extends FieldExprColumnPattern {
         aggregate: QueryAggregateFunction;
+    }
+    interface FieldExprHierarchyLevelPattern extends FieldExprEntityItemPattern {
+        name: string;
+        level: string;
     }
     interface FieldExprHierarchyLevelAggrPattern extends FieldExprHierarchyLevelPattern {
         aggregate: QueryAggregateFunction;
     }
-    module SQExprBuilder {
-        function fieldExpr(fieldExpr: FieldExprPattern): SQExpr;
-    }
-    interface FieldExprColumnHierarchyLevelVariation {
+    interface FieldExprColumnHierarchyLevelVariationPattern {
         source: FieldExprColumnPattern;
         level: FieldExprHierarchyLevelPattern;
         variationName: string;
     }
-    interface FieldExprEntityAggrPattern extends FieldExprEntityItemPattern {
-        aggregate: QueryAggregateFunction;
+    interface FieldExprPercentilePattern {
+        arg: FieldExprPattern;
+        k: number;
+        exclusive: boolean;
     }
-    interface FieldExprHierarchyLevelPattern extends FieldExprEntityItemPattern {
-        level: string;
-        name: string;
+    interface FieldExprPercentOfGrandTotalPattern {
+        baseExpr: FieldExprPattern;
     }
-    interface FieldExprHierarchyPattern extends FieldExprEntityItemPattern {
-        name: string;
+    interface FieldExprSelectRefPattern {
+        expressionName: string;
     }
-    type FieldExprMeasurePattern = FieldExprPropertyPattern;
+    module SQExprBuilder {
+        function fieldExpr(fieldExpr: FieldExprPattern): SQExpr;
+        function fromColumnAggr(columnAggr: FieldExprColumnAggrPattern): SQAggregationExpr;
+        function fromColumn(column: FieldExprColumnPattern): SQColumnRefExpr;
+        function fromEntity(entityPattern: FieldExprEntityPattern): SQEntityExpr;
+        function fromEntityAggr(entityAggr: FieldExprEntityAggrPattern): SQAggregationExpr;
+        function fromHierarchyLevelAggr(hierarchyLevelAggr: FieldExprHierarchyLevelAggrPattern): SQAggregationExpr;
+        function fromHierarchyLevel(hierarchyLevelPattern: FieldExprHierarchyLevelPattern): SQHierarchyLevelExpr;
+        function fromHierarchy(hierarchyPattern: FieldExprHierarchyPattern): SQHierarchyExpr;
+    }
     module SQExprConverter {
         function asFieldPattern(sqExpr: SQExpr): FieldExprPattern;
     }
     module FieldExprPattern {
+        function visit<T>(expr: SQExpr | FieldExprPattern, visitor: IFieldExprPatternVisitor<T>): T;
+        function toColumnRefSQExpr(columnPattern: FieldExprColumnPattern): SQColumnRefExpr;
+        function getAggregate(fieldExpr: FieldExprPattern): QueryAggregateFunction;
+        function isAggregation(fieldExpr: FieldExprPattern): boolean;
         function hasFieldExprName(fieldExpr: FieldExprPattern): boolean;
         function getPropertyName(fieldExpr: FieldExprPattern): string;
         function getHierarchyName(fieldExpr: FieldExprPattern): string;
         function getColumnRef(fieldExpr: FieldExprPattern): FieldExprPropertyPattern;
         function getFieldExprName(fieldExpr: FieldExprPattern): string;
-        function toFieldExprEntityItemPattern(fieldExpr: FieldExprPattern): FieldExprEntityItemPattern;
+        function getSchema(fieldExpr: FieldExprPattern): string;
+        function toFieldExprEntityPattern(fieldExpr: FieldExprPattern): FieldExprEntityPattern;
+        function toFieldExprEntityItemPattern(fieldExpr: FieldExprPattern): FieldExprEntityPattern;
     }
 }
+
 declare module powerbi {
     module DataViewAnalysis {
         import QueryProjectionsByRole = powerbi.data.QueryProjectionsByRole;
@@ -1465,6 +1952,14 @@ declare module powerbi {
         function isMetadataEquivalent(metadata1: DataViewMetadata, metadata2: DataViewMetadata): boolean;
     }
 }
+
+declare module powerbi.data {
+    module DataViewRoleWildcard {
+        function fromRoles(roles: string[]): DataViewRoleWildcard;
+        function equals(firstRoleWildcard: DataViewRoleWildcard, secondRoleWildcard: DataViewRoleWildcard): boolean;
+    }
+}
+
 declare module powerbi {
     module DataViewScopeIdentity {
         /** Compares the two DataViewScopeIdentity values for equality. */
@@ -1476,31 +1971,106 @@ declare module powerbi {
         function createDataViewScopeIdentity(expr: SQExpr): DataViewScopeIdentity;
     }
 }
+
 declare module powerbi.data {
     module DataViewScopeWildcard {
         function matches(wildcard: DataViewScopeWildcard, instance: DataViewScopeIdentity): boolean;
+        function equals(firstScopeWildcard: DataViewScopeWildcard, secondScopeWildcard: DataViewScopeWildcard): boolean;
         function fromExprs(exprs: SQExpr[]): DataViewScopeWildcard;
     }
 }
+
+declare module powerbi.data {
+    interface IColorAllocatorCache {
+        get(key: SQFillRuleExpr): IColorAllocator;
+        register(key: SQFillRuleExpr, colorAllocator: IColorAllocator): this;
+    }
+    function createColorAllocatorCache(): IColorAllocatorCache;
+}
+
 declare module powerbi.data {
     /** Responsible for providing specific values to be used by expression and rule evaluation. */
     interface IEvalContext {
+        getColorAllocator(expr: SQFillRuleExpr): IColorAllocator;
         getExprValue(expr: SQExpr): PrimitiveValue;
         getRoleValue(roleName: string): PrimitiveValue;
-        getCurrentIdentity(): DataViewScopeIdentity;
+    }
+}
+
+declare module powerbi.data {
+    interface DataViewRegressionRunOptions {
+        dataViewMappings: DataViewMapping[];
+        visualDataViews: DataView[];
+        dataRoles: VisualDataRole[];
+        objectDescriptors: DataViewObjectDescriptors;
+        objectDefinitions: DataViewObjectDefinitions;
+        colorAllocatorFactory: IColorAllocatorFactory;
+        transformSelects: DataViewSelectTransform[];
+        metadata: DataViewMetadata;
+        projectionActiveItems: DataViewProjectionActiveItems;
+    }
+    module DataViewRegression {
+        const regressionYQueryName: string;
+        function run(options: DataViewRegressionRunOptions): DataView[];
+        /**
+         * This function will compute the linear regression algorithm on the sourceDataView and create a new dataView.
+         * It works on scalar axis only.
+         * The algorithm is as follows
+         *
+         * 1. Find the cartesian X and Y roles and the columns that correspond to those roles
+         * 2. Get the data points, (X, Y) pairs, for each series, combining if needed.
+         * 3. Compute the X and Y points for regression line using Y = Slope * X + Intercept
+         * If highlights values are present, repeat steps 2 & 3 using highlight values.
+         * 4. Create the new dataView using the points computed above
+         */
+        function linearRegressionTransform(sourceDataView: DataView, dataRoles: VisualDataRole[], regressionDataViewMapping: DataViewMapping, objectDescriptors: DataViewObjectDescriptors, objectDefinitions: DataViewObjectDefinitions, colorAllocatorFactory: IColorAllocatorFactory): DataView;
+    }
+}
+
+declare module powerbi.data {
+    import RoleKindByQueryRef = DataViewAnalysis.RoleKindByQueryRef;
+    interface DataViewSelectTransform {
+        displayName?: string;
+        queryName?: string;
+        format?: string;
+        type?: ValueType;
+        roles?: {
+            [roleName: string]: boolean;
+        };
+        kpi?: DataViewKpiColumnMetadata;
+        sort?: SortDirection;
+        expr?: SQExpr;
+        discourageAggregationAcrossGroups?: boolean;
+        /** Describes the default value applied to a column, if any. */
+        defaultValue?: DefaultValueDefinition;
+    }
+    module DataViewSelectTransform {
+        /** Convert selection info to projections */
+        function projectionsFromSelects(selects: DataViewSelectTransform[], projectionActiveItems: DataViewProjectionActiveItems): QueryProjectionsByRole;
+        /** Use selections and metadata to fashion query role kinds */
+        function createRoleKindFromMetadata(selects: DataViewSelectTransform[], metadata: DataViewMetadata): RoleKindByQueryRef;
     }
 }
 declare module powerbi.data {
     interface ICategoricalEvalContext extends IEvalContext {
         setCurrentRowIndex(index: number): void;
     }
-    function createCategoricalEvalContext(dataViewCategorical: DataViewCategorical, identities?: DataViewScopeIdentity[]): ICategoricalEvalContext;
+    function createCategoricalEvalContext(colorAllocatorProvider: IColorAllocatorCache, dataViewCategorical: DataViewCategorical, selectTransforms: DataViewSelectTransform[]): ICategoricalEvalContext;
 }
+
+declare module powerbi.data {
+    interface ITableEvalContext extends IEvalContext {
+        setCurrentRowIndex(index: number): void;
+    }
+    function createTableEvalContext(colorAllocatorProvider: IColorAllocatorCache, dataViewTable: DataViewTable, selectTransforms: DataViewSelectTransform[]): ITableEvalContext;
+}
+
 declare module powerbi.data {
     class RuleEvaluation {
         evaluate(evalContext: IEvalContext): any;
     }
 }
+
 declare module powerbi.data {
     class ColorRuleEvaluation extends RuleEvaluation {
         private inputRole;
@@ -1509,6 +2079,237 @@ declare module powerbi.data {
         evaluate(evalContext: IEvalContext): any;
     }
 }
+
+declare module powerbi.data.utils {
+    module DataViewMatrixUtils {
+        /**
+         * Invokes the specified callback once per leaf nodes (including root-level leaves and descendent leaves) of the
+         * specified rootNodes, with an optional index parameter in the callback that is the 0-based index of the
+         * particular leaf node in the context of this forEachLeafNode(...) invocation.
+         *
+         * If rootNodes is null or undefined or empty, the specified callback will not get invoked.
+         *
+         * The treePath parameter in the callback is an ordered set of nodes that form the path from the specified
+         * rootNodes down to the leafNode argument itself.  If callback leafNode is one of the specified rootNodes,
+         * then treePath will be an array of length 1 containing that very node.
+         *
+         * IMPORTANT: The treePath array passed to the callback will be modified after the callback function returns!
+         * If your callback needs to retain a copy of the treePath, please clone the array before returning.
+         */
+        function forEachLeafNode(rootNodes: DataViewMatrixNode | DataViewMatrixNode[], callback: (leafNode: DataViewMatrixNode, index?: number, treePath?: DataViewMatrixNode[]) => void): void;
+        /**
+         * Returned an object tree where each node and its children property are inherited from the specified node
+         * hierarchy, from the root down to the nodes at the specified deepestLevelToInherit, inclusively.
+         *
+         * The inherited nodes at level === deepestLevelToInherit will NOT get an inherited version of children array
+         * property, i.e. its children property is the same array object referenced in the input node's object tree.
+         *
+         * @param node The input node with the hierarchy object tree.
+         * @param deepestLevelToInherit The highest level for a node to get inherited. See DataViewMatrixNode.level property.
+         * @param useInheritSingle If true, then a node will get inherited in the returned object tree only if it is
+         * not already an inherited object. Same goes for the node's children property.  This is useful for creating
+         * "visual DataView" objects from "query DataView" objects, as object inheritance is the mechanism for
+         * "visual DataView" to override properties in "query DataView", and that "query DataView" never contains
+         * inherited objects.
+         */
+        function inheritMatrixNodeHierarchy(node: DataViewMatrixNode, deepestLevelToInherit: number, useInheritSingle: boolean): DataViewMatrixNode;
+        /**
+         * Returns true if the specified matrixOrHierarchy contains any composite grouping, i.e. a grouping on multiple columns.
+         * An example of composite grouping is one on [Year, Quarter, Month], where a particular group instance can have
+         * Year === 2016, Quarter === 'Qtr 1', Month === 1.
+         *
+         * Returns false if the specified matrixOrHierarchy does not contain any composite group,
+         * or if matrixOrHierarchy is null or undefined.
+         */
+        function containsCompositeGroup(matrixOrHierarchy: DataViewMatrix | DataViewHierarchy): boolean;
+    }
+}
+
+declare module powerbi.data.utils {
+    module DataViewMetadataColumnUtils {
+        interface MetadataColumnAndProjectionIndex {
+            /**
+            * A metadata column taken from a source collection, e.g. DataViewHierarchyLevel.sources, DataViewMatrix.valueSources...
+            */
+            metadataColumn: DataViewMetadataColumn;
+            /**
+             * The index of this.metadataColumn in its sources collection.
+             *
+             * E.g.1 This can be the value of the property DataViewMatrixGroupValue.levelSourceIndex which is the index of this.metadataColumn in DataViewHierarchyLevel.sources.
+             * E.g.2 This can be the value of the property DataViewMatrixNodeValue.valueSourceIndex which refer to columns in DataViewMatrix.valueSources.
+             */
+            sourceIndex: number;
+            /**
+            * The index of this.metadataColumn in the projection ordering of a given role.
+            */
+            projectionOrderIndex: number;
+        }
+        /**
+         * Returns true iff the specified metadataColumn is assigned to the specified targetRole.
+         */
+        function isForRole(metadataColumn: DataViewMetadataColumn, targetRole: string): boolean;
+        /**
+         * Joins each column in the specified columnSources with projection ordering index into a wrapper object.
+         *
+         * Note: In order for this function to reliably calculate the "source index" of a particular column, the
+         * specified columnSources must be a non-filtered array of column sources from the DataView, such as
+         * the DataViewHierarchyLevel.sources and DataViewMatrix.valueSources array properties.
+         *
+         * @param columnSources E.g. DataViewHierarchyLevel.sources, DataViewMatrix.valueSources...
+         * @param projection The projection ordering.  It must contain an ordering for the specified role.
+         * @param role The role for getting the relevant projection ordering, as well as for filtering out the irrevalent columns in columnSources.
+         */
+        function joinMetadataColumnsAndProjectionOrder(columnSources: DataViewMetadataColumn[], projection: DataViewProjectionOrdering, role: string): MetadataColumnAndProjectionIndex[];
+    }
+}
+
+declare module powerbi.data {
+    import ArrayNamedItems = jsCommon.ArrayNamedItems;
+    class ConceptualSchema {
+        entities: ArrayNamedItems<ConceptualEntity>;
+        capabilities: ConceptualCapabilities;
+        /** Indicates whether the user can edit this ConceptualSchema.  This is used to enable/disable model authoring UX. */
+        canEdit: boolean;
+        findProperty(entityName: string, propertyName: string): ConceptualProperty;
+        findHierarchy(entityName: string, name: string): ConceptualHierarchy;
+        findHierarchyByVariation(variationEntityName: string, variationColumnName: string, variationName: string, hierarchyName: string): ConceptualHierarchy;
+        /**
+        * Returns the first property of the entity whose kpi is tied to kpiProperty
+        */
+        findPropertyWithKpi(entityName: string, kpiProperty: ConceptualProperty): ConceptualProperty;
+    }
+    interface ConceptualCapabilities {
+        discourageQueryAggregateUsage: boolean;
+        normalizedFiveStateKpiRange: boolean;
+        supportsMedian: boolean;
+        supportsPercentile: boolean;
+        supportsScopedEval: boolean;
+    }
+    interface ConceptualPropertyItemContainer {
+        properties: ArrayNamedItems<ConceptualProperty>;
+        hierarchies?: ArrayNamedItems<ConceptualHierarchy>;
+        displayFolders?: ArrayNamedItems<ConceptualDisplayFolder>;
+    }
+    interface ConceptualPropertyItem {
+        name: string;
+        displayName: string;
+        hidden?: boolean;
+    }
+    interface ConceptualEntity extends ConceptualPropertyItemContainer {
+        name: string;
+        displayName: string;
+        visibility?: ConceptualVisibility;
+        calculated?: boolean;
+        queryable?: ConceptualQueryableState;
+        navigationProperties?: ArrayNamedItems<ConceptualNavigationProperty>;
+    }
+    interface ConceptualDisplayFolder extends ConceptualPropertyItem, ConceptualPropertyItemContainer {
+    }
+    interface ConceptualProperty extends ConceptualPropertyItem {
+        type: ValueType;
+        kind: ConceptualPropertyKind;
+        format?: string;
+        column?: ConceptualColumn;
+        queryable?: ConceptualQueryableState;
+        measure?: ConceptualMeasure;
+        kpiValue?: ConceptualProperty;
+    }
+    interface ConceptualHierarchy extends ConceptualPropertyItem {
+        levels: ArrayNamedItems<ConceptualHierarchyLevel>;
+    }
+    interface ConceptualHierarchyLevel extends ConceptualPropertyItem {
+        column: ConceptualProperty;
+    }
+    interface ConceptualNavigationProperty {
+        name: string;
+        isActive: boolean;
+        sourceColumn?: ConceptualColumn;
+        targetEntity: ConceptualEntity;
+        sourceMultiplicity: ConceptualMultiplicity;
+        targetMultiplicity: ConceptualMultiplicity;
+    }
+    interface ConceptualVariationSource {
+        name: string;
+        isDefault: boolean;
+        navigationProperty?: ConceptualNavigationProperty;
+        defaultHierarchy?: ConceptualHierarchy;
+        defaultProperty?: ConceptualProperty;
+    }
+    interface ConceptualColumn {
+        defaultAggregate?: ConceptualDefaultAggregate;
+        keys?: ArrayNamedItems<ConceptualProperty>;
+        idOnEntityKey?: boolean;
+        calculated?: boolean;
+        defaultValue?: SQConstantExpr;
+        variations?: ArrayNamedItems<ConceptualVariationSource>;
+        aggregateBehavior?: ConceptualAggregateBehavior;
+    }
+    interface ConceptualMeasure {
+        kpi?: ConceptualPropertyKpi;
+    }
+    interface ConceptualPropertyKpi {
+        statusMetadata: DataViewKpiColumnMetadata;
+        trendMetadata?: DataViewKpiColumnMetadata;
+        status?: ConceptualProperty;
+        goal?: ConceptualProperty;
+        trend?: ConceptualProperty;
+    }
+    const enum ConceptualVisibility {
+        Visible = 0,
+        Hidden = 1,
+        ShowAsVariationsOnly = 2,
+        IsPrivate = 4,
+    }
+    const enum ConceptualQueryableState {
+        Queryable = 0,
+        Error = 1,
+    }
+    const enum ConceptualMultiplicity {
+        ZeroOrOne = 0,
+        One = 1,
+        Many = 2,
+    }
+    const enum ConceptualPropertyKind {
+        Column = 0,
+        Measure = 1,
+        Kpi = 2,
+    }
+    const enum ConceptualDefaultAggregate {
+        Default = 0,
+        None = 1,
+        Sum = 2,
+        Count = 3,
+        Min = 4,
+        Max = 5,
+        Average = 6,
+        DistinctCount = 7,
+    }
+    enum ConceptualDataCategory {
+        None = 0,
+        Address = 1,
+        City = 2,
+        Company = 3,
+        Continent = 4,
+        Country = 5,
+        County = 6,
+        Date = 7,
+        Image = 8,
+        ImageUrl = 9,
+        Latitude = 10,
+        Longitude = 11,
+        Organization = 12,
+        Place = 13,
+        PostalCode = 14,
+        Product = 15,
+        StateOrProvince = 16,
+        WebUrl = 17,
+    }
+    const enum ConceptualAggregateBehavior {
+        Default = 0,
+        DiscourageAcrossGroups = 1,
+    }
+}
+
 declare module powerbi {
     import ArrayNamedItems = jsCommon.ArrayNamedItems;
     import FederatedConceptualSchema = powerbi.data.FederatedConceptualSchema;
@@ -1524,6 +2325,7 @@ declare module powerbi {
         function getScriptInput(projections: QueryProjectionsByRole, selects: ArrayNamedItems<data.NamedSQExpr>, schema: FederatedConceptualSchema): data.ScriptInput;
     }
 }
+
 declare module powerbi.data.segmentation {
     interface DataViewTableSegment extends DataViewTable {
         /**
@@ -1564,12 +2366,15 @@ declare module powerbi.data.segmentation {
         function mergeTreeNodes(sourceRoot: DataViewTreeNode, segmentRoot: DataViewTreeNode, allowDifferentStructure: boolean): void;
     }
 }
+
 declare module powerbi.data {
     /** Rewrites an expression tree, including all descendant nodes. */
-    class SQExprRewriter implements ISQExprVisitor<SQExpr> {
+    class SQExprRewriter implements ISQExprVisitor<SQExpr>, IFillRuleDefinitionVisitor<LinearGradient2Definition, LinearGradient3Definition> {
         visitColumnRef(expr: SQColumnRefExpr): SQExpr;
         visitMeasureRef(expr: SQMeasureRefExpr): SQExpr;
         visitAggr(expr: SQAggregationExpr): SQExpr;
+        visitSelectRef(expr: SQSelectRefExpr): SQExpr;
+        visitPercentile(expr: SQPercentileExpr): SQExpr;
         visitHierarchy(expr: SQHierarchyExpr): SQExpr;
         visitHierarchyLevel(expr: SQHierarchyLevelExpr): SQExpr;
         visitPropertyVariationSource(expr: SQPropertyVariationSourceExpr): SQExpr;
@@ -1590,14 +2395,24 @@ declare module powerbi.data {
         visitNow(orig: SQNowExpr): SQExpr;
         visitDefaultValue(orig: SQDefaultValueExpr): SQExpr;
         visitAnyValue(orig: SQAnyValueExpr): SQExpr;
+        visitArithmetic(orig: SQArithmeticExpr): SQExpr;
+        visitScopedEval(orig: SQScopedEvalExpr): SQExpr;
+        visitWithRef(orig: SQWithRefExpr): SQExpr;
+        visitFillRule(orig: SQFillRuleExpr): SQExpr;
+        visitLinearGradient2(origGradient2: LinearGradient2Definition): LinearGradient2Definition;
+        visitLinearGradient3(origGradient3: LinearGradient3Definition): LinearGradient3Definition;
+        private visitFillRuleStop(stop);
+        visitResourcePackageItem(orig: SQResourcePackageItemExpr): SQExpr;
     }
 }
+
 declare module powerbi.data {
     /** Responsible for writing equality comparisons against a field to an SQInExpr. */
     module EqualsToInRewriter {
         function run(expr: SQExpr): SQExpr;
     }
 }
+
 declare module powerbi.data {
     interface FilterValueScopeIdsContainer {
         isNot: boolean;
@@ -1609,13 +2424,16 @@ declare module powerbi.data {
         function getFirstComparandValue(identity: DataViewScopeIdentity): any;
     }
 }
+
 declare module powerbi.data {
     /** Recognizes DataViewScopeIdentity expression trees to extract comparison keys. */
     module ScopeIdentityExtractor {
         function getKeys(expr: SQExpr): SQExpr[];
+        function getValues(expr: SQExpr): SQExpr[];
         function getInExpr(expr: SQExpr): SQInExpr;
     }
 }
+
 declare module powerbi.data {
     module PrimitiveValueEncoding {
         function decimal(value: number): string;
@@ -1627,6 +2445,17 @@ declare module powerbi.data {
         function boolean(value: boolean): string;
     }
 }
+
+declare module powerbi.data {
+    interface ISQAggregationOperations {
+        /** Returns an array of supported aggregates for a given expr and role type. */
+        getSupportedAggregates(expr: SQExpr, schema: FederatedConceptualSchema, targetTypes: ValueTypeDescriptor[]): QueryAggregateFunction[];
+        isSupportedAggregate(expr: SQExpr, schema: FederatedConceptualSchema, aggregate: QueryAggregateFunction, targetTypes: ValueTypeDescriptor[]): boolean;
+        createExprWithAggregate(expr: SQExpr, schema: FederatedConceptualSchema, aggregateNonNumericFields: boolean, targetTypes: ValueTypeDescriptor[], preferredAggregate?: QueryAggregateFunction): SQExpr;
+    }
+    function createSQAggregationOperations(datetimeMinMaxSupported: boolean): ISQAggregationOperations;
+}
+
 declare module powerbi.data {
     module SQHierarchyExprUtils {
         function getConceptualHierarchyLevelFromExpr(conceptualSchema: FederatedConceptualSchema, fieldExpr: FieldExprPattern): ConceptualHierarchyLevel;
@@ -1651,6 +2480,7 @@ declare module powerbi.data {
         function convert(sqExpr: SQExpr, federatedSchema: FederatedConceptualSchema): SQExpr[];
     }
 }
+
 declare module powerbi.data {
     interface SQExprGroup {
         expr: SQExpr;
@@ -1663,15 +2493,28 @@ declare module powerbi.data {
         function groupExprs(schema: FederatedConceptualSchema, exprs: SQExpr[]): SQExprGroup[];
     }
 }
+
 declare module powerbi.data {
     /** Represents an immutable expression within a SemanticQuery. */
     abstract class SQExpr implements ISQExpr {
         private _kind;
         constructor(kind: SQExprKind);
         static equals(x: SQExpr, y: SQExpr, ignoreCase?: boolean): boolean;
-        validate(schema: FederatedConceptualSchema, errors?: SQExprValidationError[]): SQExprValidationError[];
+        validate(schema: FederatedConceptualSchema, aggrUtils: ISQAggregationOperations, errors?: SQExprValidationError[]): SQExprValidationError[];
         accept<T, TArg>(visitor: ISQExprVisitorWithArg<T, TArg>, arg?: TArg): T;
         kind: SQExprKind;
+        static isArithmetic(expr: SQExpr): expr is SQArithmeticExpr;
+        static isColumn(expr: SQExpr): expr is SQColumnRefExpr;
+        static isConstant(expr: SQExpr): expr is SQConstantExpr;
+        static isEntity(expr: SQExpr): expr is SQEntityExpr;
+        static isHierarchy(expr: SQExpr): expr is SQHierarchyExpr;
+        static isHierarchyLevel(expr: SQExpr): expr is SQHierarchyLevelExpr;
+        static isAggregation(expr: SQExpr): expr is SQAggregationExpr;
+        static isMeasure(expr: SQExpr): expr is SQMeasureRefExpr;
+        static isSelectRef(expr: SQExpr): expr is SQSelectRefExpr;
+        static isScopedEval(expr: SQExpr): expr is SQScopedEvalExpr;
+        static isWithRef(expr: SQExpr): expr is SQWithRefExpr;
+        static isResourcePackageItem(expr: SQExpr): expr is SQResourcePackageItemExpr;
         getMetadata(federatedSchema: FederatedConceptualSchema): SQExprMetadata;
         getDefaultAggregate(federatedSchema: FederatedConceptualSchema, forceAggregation?: boolean): QueryAggregateFunction;
         /** Return the SQExpr[] of group on columns if it has group on keys otherwise return the SQExpr of the column.*/
@@ -1681,9 +2524,11 @@ declare module powerbi.data {
         private getPropertyKeys(schema);
         getConceptualProperty(federatedSchema: FederatedConceptualSchema): ConceptualProperty;
         getTargetEntityForVariation(federatedSchema: FederatedConceptualSchema, variationName: string): string;
+        getTargetEntity(federatedSchema: FederatedConceptualSchema): SQEntityExpr;
         private getHierarchyLevelConceptualProperty(federatedSchema);
         private getMetadataForVariation(field, federatedSchema);
         private getMetadataForHierarchyLevel(field, federatedSchema);
+        private getMetadataForPercentOfGrandTotal();
         private getPropertyMetadata(field, property);
         private getMetadataForProperty(field, federatedSchema);
         private static getMetadataForEntity(field, federatedSchema);
@@ -1711,6 +2556,13 @@ declare module powerbi.data {
         Now = 19,
         AnyValue = 20,
         DefaultValue = 21,
+        Arithmetic = 22,
+        FillRule = 23,
+        ResourcePackageItem = 24,
+        ScopedEval = 25,
+        WithRef = 26,
+        Percentile = 27,
+        SelectRef = 28,
     }
     interface SQExprMetadata {
         kind: FieldKind;
@@ -1737,6 +2589,25 @@ declare module powerbi.data {
         constructor(schema: string, entity: string, variable?: string);
         accept<T, TArg>(visitor: ISQExprVisitorWithArg<T, TArg>, arg?: TArg): T;
     }
+    class SQArithmeticExpr extends SQExpr {
+        left: SQExpr;
+        right: SQExpr;
+        operator: ArithmeticOperatorKind;
+        constructor(left: SQExpr, right: SQExpr, operator: ArithmeticOperatorKind);
+        accept<T, TArg>(visitor: ISQExprVisitorWithArg<T, TArg>, arg?: TArg): T;
+    }
+    class SQScopedEvalExpr extends SQExpr {
+        expression: SQExpr;
+        scope: SQExpr[];
+        constructor(expression: SQExpr, scope: SQExpr[]);
+        accept<T, TArg>(visitor: ISQExprVisitorWithArg<T, TArg>, arg?: TArg): T;
+        getMetadata(federatedSchema: FederatedConceptualSchema): SQExprMetadata;
+    }
+    class SQWithRefExpr extends SQExpr {
+        expressionName: string;
+        constructor(expressionName: string);
+        accept<T, TArg>(visitor: ISQExprVisitorWithArg<T, TArg>, arg?: TArg): T;
+    }
     abstract class SQPropRefExpr extends SQExpr {
         ref: string;
         source: SQExpr;
@@ -1756,6 +2627,14 @@ declare module powerbi.data {
         constructor(arg: SQExpr, func: QueryAggregateFunction);
         accept<T, TArg>(visitor: ISQExprVisitorWithArg<T, TArg>, arg?: TArg): T;
     }
+    class SQPercentileExpr extends SQExpr {
+        arg: SQExpr;
+        k: number;
+        exclusive: boolean;
+        constructor(arg: SQExpr, k: number, exclusive: boolean);
+        getMetadata(federatedSchema: FederatedConceptualSchema): SQExprMetadata;
+        accept<T, TArg>(visitor: ISQExprVisitorWithArg<T, TArg>, arg?: TArg): T;
+    }
     class SQPropertyVariationSourceExpr extends SQExpr {
         arg: SQExpr;
         name: string;
@@ -1773,6 +2652,11 @@ declare module powerbi.data {
         arg: SQExpr;
         level: string;
         constructor(arg: SQExpr, level: string);
+        accept<T, TArg>(visitor: ISQExprVisitorWithArg<T, TArg>, arg?: TArg): T;
+    }
+    class SQSelectRefExpr extends SQExpr {
+        expressionName: string;
+        constructor(expressionName: string);
         accept<T, TArg>(visitor: ISQExprVisitorWithArg<T, TArg>, arg?: TArg): T;
     }
     class SQAndExpr extends SQExpr {
@@ -1864,12 +2748,30 @@ declare module powerbi.data {
         constructor();
         accept<T, TArg>(visitor: ISQExprVisitorWithArg<T, TArg>, arg?: TArg): T;
     }
+    class SQFillRuleExpr extends SQExpr {
+        input: SQExpr;
+        rule: FillRuleDefinition;
+        constructor(input: SQExpr, fillRule: FillRuleDefinition);
+        accept<T, TArg>(visitor: ISQExprVisitorWithArg<T, TArg>, arg?: TArg): T;
+    }
+    class SQResourcePackageItemExpr extends SQExpr {
+        packageName: string;
+        packageType: number;
+        itemName: string;
+        constructor(packageName: string, packageType: number, itemName: string);
+        accept<T, TArg>(visitor: ISQExprVisitorWithArg<T, TArg>, arg?: TArg): T;
+    }
     /** Provides utilities for creating & manipulating expressions. */
     module SQExprBuilder {
         function entity(schema: string, entity: string, variable?: string): SQEntityExpr;
         function columnRef(source: SQExpr, prop: string): SQColumnRefExpr;
         function measureRef(source: SQExpr, prop: string): SQMeasureRefExpr;
         function aggregate(source: SQExpr, aggregate: QueryAggregateFunction): SQAggregationExpr;
+        function selectRef(expressionName: string): SQSelectRefExpr;
+        function percentile(source: SQExpr, k: number, exclusive: boolean): SQPercentileExpr;
+        function arithmetic(left: SQExpr, right: SQExpr, operator: ArithmeticOperatorKind): SQArithmeticExpr;
+        function scopedEval(expression: SQExpr, scope: SQExpr[]): SQScopedEvalExpr;
+        function withRef(expressionName: string): SQWithRefExpr;
         function hierarchy(source: SQExpr, hierarchy: string): SQHierarchyExpr;
         function propertyVariationSource(source: SQExpr, name: string, property: string): SQPropertyVariationSourceExpr;
         function hierarchyLevel(source: SQExpr, level: string): SQHierarchyLevelExpr;
@@ -1899,8 +2801,11 @@ declare module powerbi.data {
         function typedConstant(value: PrimitiveValue, type: ValueTypeDescriptor): SQConstantExpr;
         function setAggregate(expr: SQExpr, aggregate: QueryAggregateFunction): SQExpr;
         function removeAggregate(expr: SQExpr): SQExpr;
+        function setPercentOfGrandTotal(expr: SQExpr): SQExpr;
+        function removePercentOfGrandTotal(expr: SQExpr): SQExpr;
         function removeEntityVariables(expr: SQExpr): SQExpr;
-        function createExprWithAggregate(expr: SQExpr, schema: FederatedConceptualSchema, aggregateNonNumericFields: boolean, preferredAggregate?: QueryAggregateFunction): SQExpr;
+        function fillRule(expr: SQExpr, rule: FillRuleDefinition): SQFillRuleExpr;
+        function resourcePackageItem(packageName: string, packageType: number, itemName: string): SQResourcePackageItemExpr;
     }
     /** Provides utilities for obtaining information about expressions. */
     module SQExprInfo {
@@ -1917,11 +2822,14 @@ declare module powerbi.data {
         invalidLeftOperandType = 7,
         invalidRightOperandType = 8,
         invalidValueType = 9,
+        invalidPercentileArgument = 10,
+        invalidScopeArgument = 11,
     }
     class SQExprValidationVisitor extends SQExprRewriter {
         errors: SQExprValidationError[];
         private schema;
-        constructor(schema: FederatedConceptualSchema, errors?: SQExprValidationError[]);
+        private aggrUtils;
+        constructor(schema: FederatedConceptualSchema, aggrUtils: ISQAggregationOperations, errors?: SQExprValidationError[]);
         visitIn(expr: SQInExpr): SQExpr;
         visitCompare(expr: SQCompareExpr): SQExpr;
         visitColumnRef(expr: SQColumnRefExpr): SQExpr;
@@ -1929,10 +2837,15 @@ declare module powerbi.data {
         visitAggr(expr: SQAggregationExpr): SQExpr;
         visitHierarchy(expr: SQHierarchyExpr): SQExpr;
         visitHierarchyLevel(expr: SQHierarchyLevelExpr): SQExpr;
+        visitPercentile(expr: SQPercentileExpr): SQExpr;
         visitEntity(expr: SQEntityExpr): SQExpr;
         visitContains(expr: SQContainsExpr): SQExpr;
         visitStartsWith(expr: SQContainsExpr): SQExpr;
+        visitArithmetic(expr: SQArithmeticExpr): SQExpr;
+        visitScopedEval(expr: SQScopedEvalExpr): SQExpr;
+        visitWithRef(expr: SQWithRefExpr): SQExpr;
         private validateOperandsAndTypeForStartOrContains(left, right);
+        private validateArithmeticTypes(left, right);
         private validateCompatibleType(left, right);
         private validateEntity(schemaName, entityName);
         private validateHierarchy(schemaName, entityName, hierarchyName);
@@ -1941,14 +2854,16 @@ declare module powerbi.data {
         private isQueryable(fieldExpr);
     }
 }
+
 declare module powerbi.data {
+    import ConceptualEntity = powerbi.data.ConceptualEntity;
+    import SQEntityExpr = powerbi.data.SQEntityExpr;
     module SQExprUtils {
-        /** Returns an array of supported aggregates for a given expr and role. */
-        function getSupportedAggregates(expr: SQExpr, schema: FederatedConceptualSchema): QueryAggregateFunction[];
-        function isSupportedAggregate(expr: SQExpr, schema: FederatedConceptualSchema, aggregate: QueryAggregateFunction): boolean;
+        function supportsArithmetic(expr: SQExpr, schema: FederatedConceptualSchema): boolean;
         function indexOfExpr(items: SQExpr[], searchElement: SQExpr): number;
+        function indexOfNamedExpr(items: NamedSQExpr[], searchElement: SQExpr): number;
         function sequenceEqual(x: SQExpr[], y: SQExpr[]): boolean;
-        function uniqueName(namedItems: NamedSQExpr[], expr: SQExpr): string;
+        function uniqueName(namedItems: NamedSQExpr[], expr: SQExpr, exprDefaultName?: string): string;
         /** Generates a default expression name  */
         function defaultName(expr: SQExpr, fallback?: string): string;
         /** Gets a value indicating whether the expr is a model measure or an aggregate. */
@@ -1958,25 +2873,37 @@ declare module powerbi.data {
         /** Gets a value indicating whether the expr is a DefaultValue or equals comparison to DefaultValue*/
         function isDefaultValue(expr: SQExpr): boolean;
         function discourageAggregation(expr: SQExpr, schema: FederatedConceptualSchema): boolean;
+        function getAggregateBehavior(expr: SQExpr, schema: FederatedConceptualSchema): ConceptualAggregateBehavior;
         function getSchemaCapabilities(expr: SQExpr, schema: FederatedConceptualSchema): ConceptualCapabilities;
         function getKpiMetadata(expr: SQExpr, schema: FederatedConceptualSchema): DataViewKpiColumnMetadata;
+        function getConceptualEntity(entityExpr: SQEntityExpr, schema: FederatedConceptualSchema): ConceptualEntity;
         function getDefaultValue(fieldSQExpr: SQExpr, schema: FederatedConceptualSchema): SQConstantExpr;
         function getDefaultValues(fieldSQExprs: SQExpr[], schema: FederatedConceptualSchema): SQConstantExpr[];
         /** Return compare or and expression for key value pairs. */
         function getDataViewScopeIdentityComparisonExpr(fieldsExpr: SQExpr[], values: SQConstantExpr[]): SQExpr;
         function getActiveTablesNames(queryDefn: data.SemanticQuery): string[];
+        function isRelatedToMany(schema: FederatedConceptualSchema, sourceExpr: SQEntityExpr, targetExpr: SQEntityExpr): boolean;
+        function isRelatedToOne(schema: FederatedConceptualSchema, sourceExpr: SQEntityExpr, targetExpr: SQEntityExpr): boolean;
+        function isRelatedOneToOne(schema: FederatedConceptualSchema, sourceExpr: SQEntityExpr, targetExpr: SQEntityExpr): boolean;
+        /** Performs a union of the 2 arrays with SQExpr.equals as comparator to skip duplicate items,
+            and returns a new array. When available, we should use _.unionWith from lodash. */
+        function concatUnique(leftExprs: SQExpr[], rightExprs: SQExpr[]): SQExpr[];
     }
 }
+
 declare module powerbi.data {
     class SemanticQueryRewriter {
         private exprRewriter;
         constructor(exprRewriter: ISQExprVisitor<SQExpr>);
         rewriteFrom(fromValue: SQFrom): SQFrom;
         rewriteSelect(selectItems: NamedSQExpr[], from: SQFrom): NamedSQExpr[];
+        rewriteGroupBy(groupByitems: NamedSQExpr[], from: SQFrom): NamedSQExpr[];
+        private rewriteNamedSQExpressions(expressions, from);
         rewriteOrderBy(orderByItems: SQSortDefinition[], from: SQFrom): SQSortDefinition[];
         rewriteWhere(whereItems: SQFilter[], from: SQFrom): SQFilter[];
     }
 }
+
 declare module powerbi.data {
     import ArrayNamedItems = jsCommon.ArrayNamedItems;
     interface NamedSQExpr {
@@ -2016,16 +2943,19 @@ declare module powerbi.data {
         private whereItems;
         private orderByItems;
         private selectItems;
-        constructor(from: any, where: any, orderBy: any, select: NamedSQExpr[]);
+        private groupByItems;
+        constructor(from: SQFrom, where: SQFilter[], orderBy: SQSortDefinition[], select: NamedSQExpr[], groupBy: NamedSQExpr[]);
         static create(): SemanticQuery;
-        private static createWithTrimmedFrom(from, where, orderBy, select);
+        private static createWithTrimmedFrom(from, where, orderBy, select, groupBy);
         from(): SQFrom;
         /** Returns a query equivalent to this, with the specified selected items. */
         select(values: NamedSQExpr[]): SemanticQuery;
         /** Gets the items being selected in this query. */
         select(): ArrayNamedItems<NamedSQExpr>;
         private getSelect();
+        private static createNamedExpressionArray(items);
         private setSelect(values);
+        private static rewriteExpressionsWithSourceRenames(values, from);
         /** Removes the given expression from the select. */
         removeSelect(expr: SQExpr): SemanticQuery;
         /** Removes the given expression from order by. */
@@ -2033,7 +2963,15 @@ declare module powerbi.data {
         selectNameOf(expr: SQExpr): string;
         setSelectAt(index: number, expr: SQExpr): SemanticQuery;
         /** Adds a the expression to the select clause. */
-        addSelect(expr: SQExpr): SemanticQuery;
+        addSelect(expr: SQExpr, exprName?: string): SemanticQuery;
+        private createNamedExpr(currentNames, from, expr, exprName?);
+        /** Returns a query equivalent to this, with the specified groupBy items. */
+        groupBy(values: NamedSQExpr[]): SemanticQuery;
+        /** Gets the groupby items in this query. */
+        groupBy(): ArrayNamedItems<NamedSQExpr>;
+        private getGroupBy();
+        private setGroupBy(values);
+        addGroupBy(expr: SQExpr): SemanticQuery;
         /** Gets or sets the sorting for this query. */
         orderBy(values: SQSortDefinition[]): SemanticQuery;
         orderBy(): SQSortDefinition[];
@@ -2060,7 +2998,7 @@ declare module powerbi.data {
         conditions(): SQExpr[];
         where(): SQFilter[];
         rewrite(exprRewriter: ISQExprVisitor<SQExpr>): SemanticFilter;
-        validate(schema: FederatedConceptualSchema, errors?: SQExprValidationError[]): SQExprValidationError[];
+        validate(schema: FederatedConceptualSchema, aggrUtils: ISQAggregationOperations, errors?: SQExprValidationError[]): SQExprValidationError[];
         /** Merges a list of SemanticFilters into one. */
         static merge(filters: SemanticFilter[]): SemanticFilter;
         static isDefaultFilter(filter: SemanticFilter): boolean;
@@ -2091,6 +3029,7 @@ declare module powerbi.data {
         static rewrite(expr: SQExpr, from: SQFrom): SQExpr;
     }
 }
+
 declare module powerbi.data {
     /** Utility for creating a DataView from columns of data. */
     interface IDataViewBuilderCategorical {
@@ -2132,13 +3071,19 @@ declare module powerbi.data {
     }
     function createCategoricalDataViewBuilder(): IDataViewBuilderCategorical;
 }
+
 declare module powerbi.data {
-    function createStaticEvalContext(): IEvalContext;
-    function createStaticEvalContext(dataView: DataView, selectTransforms: DataViewSelectTransform[]): IEvalContext;
+    import SQExpr = powerbi.data.SQExpr;
+    function createStaticEvalContext(colorAllocatorCache?: IColorAllocatorCache): IEvalContext;
+    function createStaticEvalContext(colorAllocatorCache: IColorAllocatorCache, dataView: DataView, selectTransforms: DataViewSelectTransform[]): IEvalContext;
+    function getExprValueFromTable(expr: SQExpr, selectTransforms: DataViewSelectTransform[], table: DataViewTable, rowIdx: number): PrimitiveValue;
+    function findSelectIndex(expr: SQExpr, selectTransforms: DataViewSelectTransform[]): number;
 }
+
 declare module powerbi.data {
-    function createMatrixEvalContext(dataViewMatrix: DataViewMatrix): IEvalContext;
+    function createMatrixEvalContext(colorAllocatorProvider: IColorAllocatorCache, dataViewMatrix: DataViewMatrix): IEvalContext;
 }
+
 declare module powerbi {
     /** Culture interfaces. These match the Globalize library interfaces intentionally. */
     interface Culture {
@@ -2169,8 +3114,7 @@ declare module powerbi {
         const NumberFormatComponentsDelimeter: string;
         interface NumericFormatMetadata {
             format: string;
-            hasEscapes: boolean;
-            hasQuotes: boolean;
+            hasLiterals: boolean;
             hasE: boolean;
             hasCommas: boolean;
             hasDots: boolean;
@@ -2208,6 +3152,7 @@ declare module powerbi {
     }
     var formattingService: IFormattingService;
 }
+
 declare module powerbi.data {
     /** Serializes SQExpr in a form optimized in-memory comparison, but not intended for storage on disk. */
     module SQExprShortSerializer {
@@ -2215,8 +3160,54 @@ declare module powerbi.data {
         function serializeArray(exprs: SQExpr[]): string;
     }
 }
-declare module powerbi.data {
-    module DataViewConcatenateCategoricalColumns {
-        function detectAndApply(dataView: DataView, roleMappings: DataViewMapping[], projectionOrdering: DataViewProjectionOrdering): DataView;
+
+declare module powerbi.visuals {
+    import Selector = powerbi.data.Selector;
+    import SelectorForColumn = powerbi.SelectorForColumn;
+    /**
+     * A combination of identifiers used to uniquely identify
+     * data points and their bound geometry.
+     */
+    class SelectionId implements ISelectionId {
+        private selector;
+        private selectorsByColumn;
+        private key;
+        private keyWithoutHighlight;
+        highlight: boolean;
+        constructor(selector: Selector, highlight: boolean);
+        equals(other: SelectionId): boolean;
+        /**
+         * Checks equality against other for all identifiers existing in this.
+         */
+        includes(other: SelectionId, ignoreHighlight?: boolean): boolean;
+        getKey(): string;
+        getKeyWithoutHighlight(): string;
+        hasIdentity(): boolean;
+        getSelector(): Selector;
+        getSelectorsByColumn(): Selector;
+        static createNull(highlight?: boolean): SelectionId;
+        static createWithId(id: DataViewScopeIdentity, highlight?: boolean): SelectionId;
+        static createWithMeasure(measureId: string, highlight?: boolean): SelectionId;
+        static createWithIdAndMeasure(id: DataViewScopeIdentity, measureId: string, highlight?: boolean): SelectionId;
+        static createWithIdAndMeasureAndCategory(id: DataViewScopeIdentity, measureId: string, queryName: string, highlight?: boolean): SelectionId;
+        static createWithIds(id1: DataViewScopeIdentity, id2: DataViewScopeIdentity, highlight?: boolean): SelectionId;
+        static createWithIdsAndMeasure(id1: DataViewScopeIdentity, id2: DataViewScopeIdentity, measureId: string, highlight?: boolean): SelectionId;
+        static createWithSelectorForColumnAndMeasure(dataMap: SelectorForColumn, measureId: string, highlight?: boolean): SelectionId;
+        static createWithHighlight(original: SelectionId): SelectionId;
+        private static idArray(id1, id2);
+    }
+    /**
+     * This class is designed to simplify the creation of SelectionId objects
+     * It allows chaining to build up an object before calling 'create' to build a SelectionId
+     */
+    class SelectionIdBuilder implements ISelectionIdBuilder {
+        private dataMap;
+        private measure;
+        static builder(): SelectionIdBuilder;
+        withCategory(categoryColumn: DataViewCategoryColumn, index: number): this;
+        withSeries(seriesColumn: DataViewValueColumns, valueColumn: DataViewValueColumn | DataViewValueColumnGroup): this;
+        withMeasure(measureId: string): this;
+        createSelectionId(): SelectionId;
+        private ensureDataMap();
     }
 }

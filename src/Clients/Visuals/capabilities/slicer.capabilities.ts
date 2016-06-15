@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Power BI Visualizations
  *
  *  Copyright (c) Microsoft Corporation
@@ -43,26 +43,24 @@ module powerbi.visuals {
                     filter: {
                         type: { filter: {} },
                     },
+                    selfFilter: {
+                        type: { filter: { selfFilter: true } },
+                    },
                     defaultValue: {
                         type: { expression: { defaultValue: true } },
                     },
-                    formatString: {
-                        type: { formatting: { formatString: true } },
-                    },
-                    outlineColor: {
-                        displayName: data.createDisplayNameGetter('Visual_OutlineColor'),
-                        type: { fill: { solid: { color: true } } }
-                    },
-                    outlineWeight: {
-                        displayName: data.createDisplayNameGetter('Visual_OutlineWeight'),
-                        type: { numeric: true }
-                    },
+                    formatString: StandardObjectProperties.formatString,
+                    outlineColor: StandardObjectProperties.outlineColor,
+                    outlineWeight: StandardObjectProperties.outlineWeight,
                     orientation: {
                         displayName: data.createDisplayNameGetter('Slicer_Orientation'),
                         type: { enumeration: slicerOrientation.type }
                     },
                     count: {
                         type: { integer: true }
+                    },
+                    selfFilterEnabled: {
+                        type: { operations: { searchEnabled: true } }
                     },
                 },
             },
@@ -82,22 +80,13 @@ module powerbi.visuals {
             header: {
                 displayName: data.createDisplayNameGetter('Visual_Header'),
                 properties: {
-                    show: {
-                        displayName: data.createDisplayNameGetter('Visual_Show'),
-                        type: { bool: true }
-                    },
-                    fontColor: {
-                        displayName: data.createDisplayNameGetter('Visual_FontColor'),
-                        type: { fill: { solid: { color: true } } }
-                    },
+                    show: StandardObjectProperties.show,
+                    fontColor: StandardObjectProperties.fontColor,
                     background: {
                         displayName: data.createDisplayNameGetter('Visual_Background'),
                         type: { fill: { solid: { color: true } } }
                     },
-                    outline: {
-                        displayName: data.createDisplayNameGetter('Visual_Outline'),
-                        type: { enumeration: outline.type }
-                    },
+                    outline: StandardObjectProperties.outline,
                     textSize: {
                         displayName: data.createDisplayNameGetter('Visual_TextSize'),
                         type: { numeric: true }
@@ -107,18 +96,12 @@ module powerbi.visuals {
             items: {
                 displayName: data.createDisplayNameGetter('Role_DisplayName_Items'),
                 properties: {
-                    fontColor: {
-                        displayName: data.createDisplayNameGetter('Visual_FontColor'),
-                        type: { fill: { solid: { color: true } } }
-                    },
+                    fontColor: StandardObjectProperties.fontColor,
                     background: {
                         displayName: data.createDisplayNameGetter('Visual_Background'),
                         type: { fill: { solid: { color: true } } }
                     },
-                    outline: {
-                        displayName: data.createDisplayNameGetter('Visual_Outline'),
-                        type: { enumeration: outline.type }
-                    },
+                    outline: StandardObjectProperties.outline,
                     textSize: {
                         displayName: data.createDisplayNameGetter('Visual_TextSize'),
                         type: { numeric: true }
@@ -141,7 +124,7 @@ module powerbi.visuals {
             default: {},
         },
         suppressDefaultTitle: true,
-        disableSeeData: true,
+        disableVisualDetails: true,
     };
 
     // TODO: Generate these from above, defining twice just introduces potential for error
@@ -151,6 +134,7 @@ module powerbi.visuals {
             outlineWeight: <DataViewObjectPropertyIdentifier>{ objectName: 'general', propertyName: 'outlineWeight' },
             orientation: <DataViewObjectPropertyIdentifier>{ objectName: 'general', propertyName: 'orientation' },
             count: <DataViewObjectPropertyIdentifier>{ objectName: 'general', propertyName: 'count' },
+            selfFilterEnabled: <DataViewObjectPropertyIdentifier>{ objectName: 'general', propertyName: 'selfFilterEnabled' },
         },
         selection: {
             selectAllCheckboxEnabled: <DataViewObjectPropertyIdentifier>{ objectName: 'selection', propertyName: 'selectAllCheckboxEnabled' },
@@ -171,8 +155,8 @@ module powerbi.visuals {
         },
         selectedPropertyIdentifier: <DataViewObjectPropertyIdentifier>{ objectName: 'general', propertyName: 'selected' },
         filterPropertyIdentifier: <DataViewObjectPropertyIdentifier> { objectName: 'general', propertyName: 'filter' },
+        selfFilterPropertyIdentifier: <DataViewObjectPropertyIdentifier>{ objectName: 'general', propertyName: 'selfFilter' },
         formatString: <DataViewObjectPropertyIdentifier> { objectName: 'general', propertyName: 'formatString' },
         defaultValue: <DataViewObjectPropertyIdentifier>{ objectName: 'general', propertyName: 'defaultValue' },
     };
-
 }

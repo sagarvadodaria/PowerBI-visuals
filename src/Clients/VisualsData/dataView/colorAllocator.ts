@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Power BI Visualizations
  *
  *  Copyright (c) Microsoft Corporation
@@ -30,7 +30,7 @@ module powerbi {
 
     export interface IColorAllocator {
         /** Computes the color corresponding to the provided value. */
-        color(value: number): string;
+        color(value: PrimitiveValue): string;
     }
 
     export interface IColorAllocatorFactory {

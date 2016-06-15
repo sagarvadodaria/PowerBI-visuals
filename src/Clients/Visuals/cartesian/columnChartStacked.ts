@@ -75,7 +75,7 @@ module powerbi.visuals {
             this.data = data;
         }
 
-        public setXScale(is100Pct: boolean, forcedTickCount?: number, forcedXDomain?: any[], axisScaleType?: string, axisDisplayUnits?: number, axisPrecision?: number): IAxisProperties {
+        public setXScale(is100Pct: boolean, forcedTickCount?: number, forcedXDomain?: any[], axisScaleType?: string, axisDisplayUnits?: number, axisPrecision?: number, xReferenceLineValue?: number): IAxisProperties {
             let width = this.width;
 
             let forcedXMin, forcedXMax;
@@ -94,16 +94,17 @@ module powerbi.visuals {
                 forcedXMax,
                 axisScaleType,
                 axisDisplayUnits,
-                axisPrecision);
+                axisPrecision,
+                xReferenceLineValue);
 
             return props;
         }
 
-        public setYScale(is100Pct: boolean, forcedTickCount?: number, forcedYDomain?: any[], axisScaleType?: string, axisDisplayUnits?: number, axisPrecision?: number): IAxisProperties {
+        public setYScale(is100Pct: boolean, forcedTickCount?: number, forcedYDomain?: any[], axisScaleType?: string, axisDisplayUnits?: number, axisPrecision?: number, y1ReferenceLineValue?: number): IAxisProperties {
             let height = this.viewportHeight;
             let valueDomain = StackedUtil.calcValueDomain(this.data.series, is100Pct);
             let valueDomainArr = [valueDomain.min, valueDomain.max];
-            let combinedDomain = AxisHelper.combineDomain(forcedYDomain, valueDomainArr);
+            let combinedDomain = AxisHelper.combineDomain(forcedYDomain, valueDomainArr, y1ReferenceLineValue);
             let shouldClamp = AxisHelper.scaleShouldClamp(combinedDomain, valueDomainArr);
             let metadataColumn = this.data.valuesMetadata[0];
             let formatString = is100Pct ?
@@ -212,8 +213,14 @@ module powerbi.visuals {
             let columnCenters = this.getColumnsCenters();
             let x = columnCenters[selectedColumnIndex];
 
+            let hoverLine = d3.select('.interactive-hover-line');
+            if (!hoverLine.empty() && !this.columnSelectionLineHandle) {
+
+                this.columnSelectionLineHandle = d3.select(hoverLine.node().parentNode);
+            }
+
             if (!this.columnSelectionLineHandle) {
-                let handle = this.columnSelectionLineHandle = this.graphicsContext.mainGraphicsContext.append('g');
+                let handle = this.columnSelectionLineHandle = this.graphicsContext.unclippedGraphicsContext.append('g');
                 handle.append('line')
                     .classed('interactive-hover-line', true)
                     .attr({
@@ -390,7 +397,7 @@ module powerbi.visuals {
             this.data = data;
         }
 
-        public setYScale(is100Pct: boolean, forcedTickCount?: number, forcedYDomain?: any[], axisScaleType?: string, axisDisplayUnits?: number, axisPrecision?: number): IAxisProperties {
+        public setYScale(is100Pct: boolean, forcedTickCount?: number, forcedYDomain?: any[], axisScaleType?: string, axisDisplayUnits?: number, axisPrecision?: number, ensureYDomain?: NumberRange): IAxisProperties {
             let height = this.height;
 
             let forcedYMin, forcedYMax;
@@ -409,18 +416,19 @@ module powerbi.visuals {
                 forcedYMax,
                 axisScaleType,
                 axisDisplayUnits,
-                axisPrecision);
+                axisPrecision,
+                ensureYDomain);
 
             return props;
         }
 
-        public setXScale(is100Pct: boolean, forcedTickCount?: number, forcedXDomain?: any[], axisScaleType?: string, axisDisplayUnits?: number, axisPrecision?: number): IAxisProperties {
+        public setXScale(is100Pct: boolean, forcedTickCount?: number, forcedXDomain?: any[], axisScaleType?: string, axisDisplayUnits?: number, axisPrecision?: number, ensureXDomain?: NumberRange): IAxisProperties {
             debug.assert(forcedTickCount === undefined, 'Cannot have stacked bar chart as combo chart.');
 
             let width = this.width;
             let valueDomain = StackedUtil.calcValueDomain(this.data.series, is100Pct);
             let valueDomainArr = [valueDomain.min, valueDomain.max];
-            let combinedDomain = AxisHelper.combineDomain(forcedXDomain, valueDomainArr);
+            let combinedDomain = AxisHelper.combineDomain(forcedXDomain, valueDomainArr, ensureXDomain);
             let shouldClamp = AxisHelper.scaleShouldClamp(combinedDomain, valueDomainArr);
             let metadataColumn = this.data.valuesMetadata[0];
             let formatString = is100Pct ?
@@ -530,9 +538,15 @@ module powerbi.visuals {
         private moveHandle(selectedColumnIndex: number) {
             let barCenters = this.getBarsCenters();
             let y = barCenters[selectedColumnIndex];
+            
+            let hoverLine = d3.select('.interactive-hover-line');
+            if (!hoverLine.empty() && !this.columnSelectionLineHandle) {
+
+                this.columnSelectionLineHandle = d3.select(hoverLine.node().parentNode);
+            }
 
             if (!this.columnSelectionLineHandle) {
-                let handle = this.columnSelectionLineHandle = this.graphicsContext.mainGraphicsContext.append('g');
+                let handle = this.columnSelectionLineHandle = this.graphicsContext.unclippedGraphicsContext.append('g');
                 handle.append('line')
                     .classed('interactive-hover-line', true)
                     .attr({

@@ -24,12 +24,11 @@
  *  THE SOFTWARE.
  */
 
-
+/// <reference path="../_references.ts"/>
 
 module powerbitests {
     import WaterfallChart = powerbi.visuals.WaterfallChart;
     import ValueType = powerbi.ValueType;
-    import PrimitiveType = powerbi.PrimitiveType;
     import DataViewTransform = powerbi.data.DataViewTransform;
     import SVGUtil = powerbi.visuals.SVGUtil;
     import VisualObjectInstanceEnumerationObject = powerbi.VisualObjectInstanceEnumerationObject;
@@ -235,7 +234,7 @@ module powerbitests {
                 dataBuilder = new WaterfallDataBuilder();
                 let dataView = dataBuilder.build();
 
-                data = WaterfallChart.converter(dataView, colors, visualBuilder.host, dataBuilder.dataLabelSettings, dataBuilder.sentimentColors, /* interactivityService */ null);
+                data = WaterfallChart.converter(dataView, colors, visualBuilder.host, dataBuilder.dataLabelSettings, dataBuilder.sentimentColors, /* interactivityService */ null, /* tooltipsEnabled */true, /* tooltipBucketEnabled */true);
                 dataPoints = data.series[0].data;
             });
 
@@ -279,13 +278,13 @@ module powerbitests {
             it("should have tooltip data", () => {
                 // categoryValues: [2015, 2016, 2017, 2018, 2019, 2020]
                 // measureValues: [100, -200, 0, 300, null, NaN];
-                expect(dataPoints[0].tooltipInfo).toEqual([{ displayName: "year", value: "2015" }, { displayName: "sales", value: "$100" }]);
-                expect(dataPoints[1].tooltipInfo).toEqual([{ displayName: "year", value: "2016" }, { displayName: "sales", value: "-$200" }]);
-                expect(dataPoints[2].tooltipInfo).toEqual([{ displayName: "year", value: "2017" }, { displayName: "sales", value: "$0" }]);
-                expect(dataPoints[3].tooltipInfo).toEqual([{ displayName: "year", value: "2018" }, { displayName: "sales", value: "$300" }]);
+                expect(dataPoints[0].tooltipInfo).toEqual([{ displayName: "year", value: "2015" }, { displayName: "sales", value: "$100" }, { displayName: 'tooltips', value: '$10' }]);
+                expect(dataPoints[1].tooltipInfo).toEqual([{ displayName: "year", value: "2016" }, { displayName: "sales", value: "-$200" }, { displayName: 'tooltips', value: '-$20' }]);
+                expect(dataPoints[2].tooltipInfo).toEqual([{ displayName: "year", value: "2017" }, { displayName: "sales", value: "$0" }, { displayName: 'tooltips', value: '$30' }]);
+                expect(dataPoints[3].tooltipInfo).toEqual([{ displayName: "year", value: "2018" }, { displayName: "sales", value: "$300" }, { displayName: 'tooltips', value: '$40' }]);
                 expect(dataPoints[4].tooltipInfo).toEqual([{ displayName: "year", value: "2019" }, { displayName: "sales", value: "$0" }]);
-                expect(dataPoints[5].tooltipInfo).toEqual([{ displayName: "year", value: "2020" }, { displayName: "sales", value: "$0" }]);
-                expect(dataPoints[6].tooltipInfo).toEqual([{ displayName: "year", value: "Total" }, { displayName: "sales", value: "$200" }]);
+                expect(dataPoints[5].tooltipInfo).toEqual([{ displayName: "year", value: "2020" }, { displayName: "sales", value: "$0" }, { displayName: 'tooltips', value: '$0' }]);
+                expect(dataPoints[6].tooltipInfo).toEqual([{ displayName: "year", value: "Total" }, { displayName: "sales", value: "$200" }, { displayName: 'tooltips', value: '$60' }]);
 
             });
 
@@ -364,7 +363,7 @@ module powerbitests {
 
                 // Extra small container to force scrolling.
                 v = visualBuilder
-                    .withSize(150, 50)
+                    .withSize(150, 100) // default for waterfall is legend on, top - leave enough vertical room
                     .build(/* use Minerva to get scrolling behavior */ true);
 
                 element = visualBuilder.element;
@@ -378,7 +377,7 @@ module powerbitests {
 
                     expect(brushExtent.length).toBe(1);
 
-                    let tick = getTicks('x').last();
+                    let tick = helpers.getAxisTicks('x').last();
                     let tickTransform = SVGUtil.parseTranslateTransform(tick.attr('transform'));
 
                     expect(parseFloat(tickTransform.x)).toBeLessThan(element.width());
@@ -393,70 +392,9 @@ module powerbitests {
                 }, DefaultWaitForRender);
             });
 
-            it('background image', (done) => {
-                let dataViewMetadata: powerbi.DataViewMetadata = {
-                    columns: [
-                        {
-                            displayName: 'col1',
-                            queryName: 'col1',
-                            type: ValueType.fromPrimitiveTypeAndCategory(PrimitiveType.Text)
-                        }, {
-                            displayName: 'col2',
-                            queryName: 'col2',
-                            isMeasure: true,
-                            type: ValueType.fromPrimitiveTypeAndCategory(PrimitiveType.Double)
-                        }, {
-                            displayName: 'col3',
-                            queryName: 'col3',
-                            isMeasure: true,
-                            type: ValueType.fromPrimitiveTypeAndCategory(PrimitiveType.Double)
-                        }, {
-                            displayName: 'col4',
-                            queryName: 'col4',
-                            isMeasure: true,
-                            type: ValueType.fromPrimitiveTypeAndCategory(PrimitiveType.Double)
-                        }]
-                };
-
-                let metadata = _.cloneDeep(dataViewMetadata);
-                metadata.objects = {
-                    plotArea: {
-                        image: {
-                            url: 'data:image/gif;base64,R0lGO',
-                            name: 'someName',
-                        },
-                    },
-                };
-                v.onDataChanged({
-                    dataViews: [{
-                        metadata: metadata,
-                        categorical: {
-                            categories: [{
-                                source: dataViewMetadata.columns[0],
-                                values: ['a', 'b', 'c', 'd', 'e']
-                            }],
-                            values: DataViewTransform.createValueColumns([{
-                                source: dataViewMetadata.columns[1],
-                                values: [500000, 495000, 490000, 480000, 500000],
-                                subtotal: 246500
-                            }])
-                        }
-                    }]
-                });
-                setTimeout(() => {
-                    let backgroundImage = $('.waterfallChart .background-image');
-                    expect(backgroundImage.length).toBeGreaterThan(0);
-                    expect(backgroundImage.css('height')).toBeDefined();
-                    expect(backgroundImage.css('width')).toBeDefined();
-                    expect(backgroundImage.css('margin-left')).toBeDefined();
-                    expect(backgroundImage.css('margin-top')).toBeDefined();
-                    done();
-                }, DefaultWaitForRender);
-            });
-
             it('should have correct tick labels after scrolling', (done) => {
                 setTimeout(() => {
-                    let tickCount = getTicks('x').length;
+                    let tickCount = helpers.getAxisTicks('x').length;
                     let categoryCount = dataBuilder.categoryValues.length + 1;  // +1 for total
 
                     // Scroll so the last ticks are in view.
@@ -467,10 +405,10 @@ module powerbitests {
                         (<powerbi.visuals.CartesianChart>v).scrollTo(startIndex);
 
                         setTimeout(() => {
-                            let tickValues = _.map(getTicks('x').get(), (v) => helpers.findElementText($(v).find('text').first()));
+                            let tickValues = _.map(helpers.getAxisTicks('x').get(), (v) => helpers.findElementText($(v).find('text').first()));
 
                             expect(tickValues.slice(0, tickValues.length - 1)).toEqual(expectedValues);
-                            expect(_.startsWith(_.last(tickValues), 'T')).toBeTruthy();  // "Total" may be truncated
+                            expect(_.startsWith(_.last(tickValues), 'T')).toBe(true);  // "Total" may be truncated
 
                             done();
                         }, DefaultWaitForRender);
@@ -665,6 +603,29 @@ module powerbitests {
             }
         });
 
+        it('background image', (done) => {
+            let v = new WaterfallVisualBuilder().build();
+            let dataView = new WaterfallDataBuilder().build();
+            dataView.metadata.objects = {
+                plotArea: {
+                    image: {
+                        url: 'data:image/gif;base64,R0lGO',
+                        name: 'someName',
+                    },
+                },
+            };
+            v.onDataChanged({ dataViews: [dataView] });
+            setTimeout(() => {
+                let backgroundImage = $('.background-image');
+                expect(backgroundImage.length).toBeGreaterThan(0);
+                expect(backgroundImage.css('height')).toBeDefined();
+                expect(backgroundImage.css('width')).toBeDefined();
+                expect(backgroundImage.css('margin-left')).toBeDefined();
+                expect(backgroundImage.css('margin-top')).toBeDefined();
+                done();
+            }, DefaultWaitForRender);
+        });
+
         describe("selection", () => {
             let visualBuilder: WaterfallVisualBuilder;
             let dataBuilder: WaterfallDataBuilder;
@@ -688,20 +649,53 @@ module powerbitests {
                 setTimeout(() => {
                     let rects = getRects();
                     spyOn(visualBuilder.host, 'onSelect').and.callThrough();
-                    (<any>rects.first()).d3Click(0, 0);
+                    rects.first().d3Click(0, 0);
 
                     expect(visualBuilder.host.onSelect).toHaveBeenCalledWith(
                         {
                             data: [
                                 {
-                                    data: [data]
+                                    data: [data],
+                                    metadata: dataBuilder.measureColumn.queryName,
                                 }
                             ],
                             data2: [
                                 {
-                                    dataMap: dataMap
+                                    dataMap: dataMap,
+                                    metadata: dataBuilder.measureColumn.queryName,
                                 }
                             ]
+                        });
+                    done();
+                }, DefaultWaitForRender);
+            });
+
+            it('context menu', (done) => {
+                let dataView = dataBuilder.build();
+
+                v.onDataChanged({ dataViews: [dataView] });
+
+                let dataMap = {};
+                let data = dataBuilder.categoryIdentities[0];
+                dataMap[dataBuilder.categoryColumn.queryName] = data;
+
+                setTimeout(() => {
+                    spyOn(visualBuilder.host, 'onContextMenu').and.callThrough();
+                    let rects = getRects();
+                    rects.first().d3ContextMenu(5, 15);
+
+                    expect(visualBuilder.host.onContextMenu).toHaveBeenCalledWith(
+                        {
+                            data: [
+                                {
+                                    dataMap: dataMap,
+                                    metadata: dataBuilder.measureColumn.queryName,
+                                }
+                            ],
+                            position: {
+                                x: 5,
+                                y: 15
+                            }
                         });
                     done();
                 }, DefaultWaitForRender);
@@ -715,10 +709,10 @@ module powerbitests {
                 setTimeout(() => {
                     let rects = getRects();
                     spyOn(visualBuilder.host, 'onSelect').and.callThrough();
-                    (<any>rects.first()).d3Click(0, 0);
+                    rects.first().d3Click(0, 0);
 
                     let clearCatcher = $('.clearCatcher');
-                    (<any>$(clearCatcher[0])).d3Click(0, 0);
+                    clearCatcher.eq(0).d3Click(0, 0);
 
                     expect(visualBuilder.host.onSelect).toHaveBeenCalledWith(
                         {
@@ -946,16 +940,11 @@ module powerbitests {
         }
 
         function getRects(): JQuery {
-            return $(".waterfallChart .mainGraphicsContext rect.column");
+            return $(".mainGraphicsContext rect.column");
         }
 
         function getConnectors(): JQuery {
-            return $(".waterfallChart .mainGraphicsContext line.waterfall-connector");
-        }
-
-        function getTicks(axis: string): JQuery {
-            // axis should be either 'x' or 'y'.
-            return $('.waterfallChart .axisGraphicsContext .' + axis + '.axis .tick');
+            return $(".mainGraphicsContext line.waterfall-connector");
         }
 
         function callCreateLabelDataPoints(v: powerbi.IVisual): powerbi.LabelDataPoint[] {
@@ -964,7 +953,7 @@ module powerbitests {
     });
 
     class WaterfallDataBuilder {
-        private _categoryColumn: powerbi.DataViewMetadataColumn = { displayName: "year", type: ValueType.fromPrimitiveTypeAndCategory(PrimitiveType.Text), queryName: "Year.Year" };
+        private _categoryColumn: powerbi.DataViewMetadataColumn = { displayName: "year", type: ValueType.fromDescriptor({ text: true }), queryName: "Year.Year", roles: { Category: true } };
         public get categoryColumn(): powerbi.DataViewMetadataColumn { return this._categoryColumn; }
 
         private _categoryValues: any[] = [2015, 2016, 2017, 2018, 2019, 2020];
@@ -973,11 +962,17 @@ module powerbitests {
         private _categoryIdentities: powerbi.DataViewScopeIdentity[] = this.categoryValues.map((v) => mocks.dataViewScopeIdentity(v));
         public get categoryIdentities(): powerbi.DataViewScopeIdentity[] { return this._categoryIdentities; }
 
-        private _measureColumn: powerbi.DataViewMetadataColumn = { displayName: "sales", isMeasure: true, type: ValueType.fromPrimitiveTypeAndCategory(PrimitiveType.Integer), objects: { general: { formatString: "$0" } } };
+        private _measureColumn: powerbi.DataViewMetadataColumn = { displayName: "sales", isMeasure: true, type: ValueType.fromDescriptor({ integer: true }), queryName: 'Sales.Sales', objects: { general: { formatString: "$0" } }, roles: { Y: true } };
         public get measureColumn(): powerbi.DataViewMetadataColumn { return this._measureColumn; }
 
         private _measureValues: any[] = [100, -200, 0, 300, null, NaN];
         public get measureValues(): any[] { return this._measureValues; }
+
+        private _tooltipColumn: powerbi.DataViewMetadataColumn = { displayName: "tooltips", isMeasure: true, type: ValueType.fromDescriptor({ integer: true }), queryName: 'Tooltips.Tooltips', objects: { general: { formatString: "$0" } }, roles: { Tooltips: true } };
+        public get tooltipColumn(): powerbi.DataViewMetadataColumn { return this._tooltipColumn; }
+
+        private _tooltipValues: any[] = [10, -20, 30, 40, null, 0];
+        public get tooltipValues(): any[] { return this._tooltipValues; }
 
         private _posMax = 200;
         public get positionMax(): number { return this._posMax; }
@@ -1019,9 +1014,13 @@ module powerbitests {
                         values: this._categoryValues,
                         identity: this._categoryIdentities
                     }],
-                    values: DataViewTransform.createValueColumns([{
+                    values: DataViewTransform.createValueColumns([
+                    {
                         source: this._measureColumn,
                         values: this._measureValues
+                    },{
+                        source: this._tooltipColumn,
+                        values: this._tooltipValues
                     }])
                 }
             };
@@ -1096,7 +1095,12 @@ module powerbitests {
 
         public build(minerva: boolean = false): powerbi.IVisual {
             if (minerva) {
-                this._visual = powerbi.visuals.visualPluginFactory.createMinerva({}).getPlugin("waterfallChart").create();
+                this._visual = new powerbi.visuals.CartesianChart({
+                    chartType: powerbi.visuals.CartesianChartType.Waterfall,
+                    isScrollable: true,
+                    tooltipsEnabled: true,
+                    behavior: new powerbi.visuals.CartesianChartBehavior([new powerbi.visuals.WaterfallChartWebBehavior()])
+                });
             }
             else {
                 this._visual = powerbi.visuals.visualPluginFactory.create().getPlugin("waterfallChart").create();

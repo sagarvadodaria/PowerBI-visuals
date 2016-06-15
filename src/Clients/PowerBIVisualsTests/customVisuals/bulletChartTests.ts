@@ -24,50 +24,166 @@
  *  THE SOFTWARE.
  */
 
-
+/// <reference path="../_references.ts"/>
 
 module powerbitests.customVisuals {
     import VisualClass = powerbi.visuals.samples.BulletChart;
+    import BulletChartData = powerbitests.customVisuals.sampleDataViews.BulletChartData;
+    powerbitests.mocks.setLocale();
 
     describe("BulletChart", () => {
+        let visualBuilder: BulletChartBuilder;
+        let defaultDataViewBuilder: powerbitests.customVisuals.sampleDataViews.BulletChartData;
+        let dataView: powerbi.DataView;
+
+        beforeEach(() => {
+            visualBuilder = new BulletChartBuilder(1000,500);
+            defaultDataViewBuilder = new BulletChartData();
+            dataView = defaultDataViewBuilder.getDataView();
+        });
+
         describe('capabilities', () => {
             it("registered capabilities", () => expect(VisualClass.capabilities).toBeDefined());
         });
 
         describe("DOM tests", () => {
-            let visualBuilder: BulletChartBuilder;
-            let dataViews: powerbi.DataView[];
-
-            beforeEach(() => {
-                visualBuilder = new BulletChartBuilder();
-                dataViews = [new powerbitests.customVisuals.sampleDataViews.BulletChartData().getDataView()];
-            });
+            let defaultCategoryWidth: number = 60;
 
             it("svg element created", () => expect(visualBuilder.mainElement[0]).toBeInDOM());
             it("update", (done) => {
-                visualBuilder.update(dataViews);
-                setTimeout(() => {
+                visualBuilder.updateRenderTimeout(dataView, () => {
                     expect(visualBuilder.mainElement.children("g").first().children("text").length)
-                        .toBe(dataViews[0].categorical.categories[0].values.length);
+                        .toBe(dataView.categorical.categories[0].values.length);
+                    expect(visualBuilder.element.find('.bulletChart').css('height')).toBe(visualBuilder.viewport.height + 'px');
+                    expect(visualBuilder.element.find('.bulletChart').css('width')).toBe(visualBuilder.viewport.width + 'px');
                     done();
-                }, DefaultWaitForRender);
+                });
+            });
+
+            it("update vertical", (done) => {
+                dataView.metadata.objects = { orientation: { vertical: true } };
+
+                visualBuilder.updateRenderTimeout(dataView, () => {
+                    expect(visualBuilder.element.find('.bullet-scroll-region').css('height'))
+                        .toBe(dataView.categorical.categories[0].values.length * defaultCategoryWidth + 'px');
+                    expect(visualBuilder.element.find('.bullet-scroll-region').css('width'))
+                        .toBe((visualBuilder.viewport.width - 13) + 'px');
+                    done();
+                });
+            });
+
+            it("update with illegal values", (done) => {
+                defaultDataViewBuilder.valuesValue = [20000, 420837, -3235, -3134, null, 0, 4, 5];
+                dataView = defaultDataViewBuilder.getDataView();
+                dataView.metadata.objects = { orientation: { vertical: false } };
+
+                visualBuilder.updateRenderTimeout(dataView, () => {
+                    expect(visualBuilder.element.find('.rect').length).toBe(0);
+                    done();
+                });
+            });
+
+            it("update non vertical", (done) => {
+                dataView.metadata.objects = { orientation: { vertical: false } };
+
+                visualBuilder.updateRenderTimeout(dataView, () => {
+                    expect(visualBuilder.element.find('.bullet-scroll-region').css('height'))
+                        .toBe(dataView.categorical.categories[0].values.length * defaultCategoryWidth + 'px');
+                    expect(visualBuilder.element.find('.bullet-scroll-region').css('width'))
+                        .toBe((visualBuilder.viewport.width - 13) + 'px');
+                    done();
+                });
+            });
+
+            it("update axis", (done) => {
+                dataView.metadata.objects = { axis: { axis: true, axisColor: { solid: { color: '#222222' } } } };
+
+                visualBuilder.updateRenderTimeout(dataView, () => {
+                    expect(visualBuilder.element.find('.axis')).toBeDefined();
+                    powerbitests.helpers.assertColorsMatch(visualBuilder.element.find('.axis').css('fill'), "#222222");
+                    powerbitests.helpers.assertColorsMatch(visualBuilder.element.find('.axis').find('line').css('stroke'), "#222222");
+                    done();
+                });
+            });
+
+            it("update without axis", (done) => {
+                dataView.metadata.objects = { axis: { axis: false } };
+
+                visualBuilder.updateRenderTimeout(dataView, () => {
+                    expect(visualBuilder.element.find('.axis').length).toBe(0);
+                    done();
+                });
+            });
+        });
+
+        describe('enumerateObjectInstances', () => {
+            it('enumerateObjectInstances no model', (done) => {
+                let enumeratuion = visualBuilder.enumerateObjectInstances({ objectName: 'labels' });
+                helpers.renderTimeout(() => {
+                    expect(enumeratuion).toBeUndefined();
+                    done();
+                });
+            });
+
+            it('enumerateObjectInstances labels', (done) => {
+                visualBuilder.updateEnumerateObjectInstancesRenderTimeout(dataView, { objectName: 'labels' }, enumeratuion => {
+                    expect(enumeratuion[0]).toBeDefined();
+                    expect(enumeratuion[0].objectName).toBe('labels');
+                    expect(enumeratuion[0].properties['labelColor']).toBe('Black');
+                    expect(enumeratuion[0].properties['fontSize']).toBe(11);
+                    done();
+                });
+            });
+
+            it('enumerateObjectInstances values', (done) => {
+                visualBuilder.updateEnumerateObjectInstancesRenderTimeout(dataView, { objectName: 'values' }, enumeratuion => {
+                    expect(enumeratuion[0]).toBeDefined();
+                    expect(enumeratuion[0].objectName).toBe('values');
+                    expect(enumeratuion[0].properties['targetValue']).toBe(0);
+                    expect(enumeratuion[0].properties['targetValue2']).toBe(0);
+                    expect(enumeratuion[0].properties['minimumPercent']).toBe(0);
+                    expect(enumeratuion[0].properties['needsImprovementPercent']).toBe(25);
+                    expect(enumeratuion[0].properties['satisfactoryPercent']).toBe(50);
+                    expect(enumeratuion[0].properties['goodPercent']).toBe(100);
+                    expect(enumeratuion[0].properties['veryGoodPercent']).toBe(125);
+                    expect(enumeratuion[0].properties['maximumPercent']).toBe(200);
+                    done();
+                });
+            });
+
+            it('enumerateObjectInstances orientation', (done) => {
+                visualBuilder.updateEnumerateObjectInstancesRenderTimeout(dataView, { objectName: 'orientation' }, enumeratuion => {
+                    expect(enumeratuion[0]).toBeDefined();
+                    expect(enumeratuion[0].objectName).toBe('orientation');
+                    expect(enumeratuion[0].properties['orientation']).toBe('Horizontal Left');
+                    done();
+                });
+            });
+
+            it('enumerateObjectInstances axis', (done) => {
+                visualBuilder.updateEnumerateObjectInstancesRenderTimeout(dataView, { objectName: 'axis' }, enumeratuion => {
+                    expect(enumeratuion[0]).toBeDefined();
+                    expect(enumeratuion[0].objectName).toBe('axis');
+                    expect(enumeratuion[0].properties['axisColor']).toBe('Grey');
+                    expect(enumeratuion[0].properties['measureUnits']).toBe('');
+                    expect(enumeratuion[0].properties['unitsColor']).toBe('Grey');
+                    done();
+                });
             });
         });
     });
 
     class BulletChartBuilder extends VisualBuilderBase<VisualClass> {
-        constructor(height: number = 200, width: number = 300, isMinervaVisualPlugin: boolean = false) {
-            super(height, width, isMinervaVisualPlugin);
-            this.build();
-            this.init();
+        constructor(width: number, height: number, isMinervaVisualPlugin: boolean = false) {
+            super(width, height, isMinervaVisualPlugin);
         }
 
         public get mainElement() {
             return this.element.children("div").children("svg");
         }
 
-        private build(): void {
-            this.visual = new VisualClass();
+        protected build() {
+            return new VisualClass();
         }
     }
 }

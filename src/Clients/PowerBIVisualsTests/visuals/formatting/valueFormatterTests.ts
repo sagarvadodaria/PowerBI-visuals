@@ -24,7 +24,7 @@
  *  THE SOFTWARE.
  */
 
-
+/// <reference path="../../_references.ts"/>
 
 module powerbitests {
     import ValueType = powerbi.ValueType;
@@ -68,9 +68,47 @@ module powerbitests {
                 expect(valueFormatter.format(0.5, "0 %;-0 %;0 %", true)).toBe("50 %");
             });
 
+            it("different signs", () => {
+                let format = "Positive;Negative;Zero";
+                expect(valueFormatter.format(1, format)).toBe("Positive");
+                expect(valueFormatter.format(-1, format)).toBe("Negative");
+                expect(valueFormatter.format(0, format)).toBe("Zero");
+            });
+
+            it("special chars in literals", () => {
+                // try to confuse formatter with special characters in a literal
+                let format = "\\#\\,\\0\\.\\0\\0\\% #,0.00% '#,0.00%'";
+                let value = 987654.32198;
+                let expected = "#,0.00% 98,765,432.20% #,0.00%";
+
+                expect(valueFormatter.format(value, format)).toBe(expected);
+            });
+
+            it("unterminated literals", () => {
+                let format = "#,0.00%";
+                let value = 987654.32198;
+                let expected = "98,765,432.20%";
+
+                // unterminated single-quote
+                expect(valueFormatter.format(value, format + " '" + format)).toBe(expected + " " + format);
+
+                // unterminated double-quote
+                expect(valueFormatter.format(value, format + ' "' + format)).toBe(expected + " " + format);
+
+                // backslash at end
+                expect(valueFormatter.format(value, format + ' \\')).toBe(expected + " ");
+            });
+
             it("format Boolean", () => {
                 expect(valueFormatter.format(true)).toBe("True");
                 expect(valueFormatter.format(false)).toBe("False");
+            });
+
+            it("format Date", () => {
+                let date = new Date(2001, 1, 3, 22, 5, 6);
+                expect(valueFormatter.format(date, "yyyy\\-MM\\-dd HH:mm:ss")).toBe("2001-02-03 22:05:06");
+                expect(valueFormatter.format(date, "yyyy\\-MM\\-dd HH:mm:ss \\t\\t")).toBe("2001-02-03 22:05:06 tt");
+                expect(valueFormatter.format(date, "yy\\-MM\\-dd hh:mm tt")).toBe("01-02-03 10:05 PM");
             });
 
             it("format Invalids", () => {
@@ -185,25 +223,29 @@ module powerbitests {
                 });
             });
 
-            describe("formatValueColumn", () => {
+            describe("formatVariantMeasureValue", () => {
                 let columnIntObjFormat: powerbi.DataViewMetadataColumn = { displayName: "col", objects: { fmtObj: { fmtProp: "R" } } };
                 let columnIntObjFormatIdentitifer: powerbi.DataViewObjectPropertyIdentifier = { objectName: "fmtObj", propertyName: "fmtProp" };
-                let formatter = (value: any) => valueFormatter.formatValueColumn(value, columnIntObjFormat, columnIntObjFormatIdentitifer);
+                let formatter = (value: any, nullsAreBlank: boolean) => valueFormatter.formatVariantMeasureValue(value, columnIntObjFormat, columnIntObjFormatIdentitifer, nullsAreBlank);
 
                 it("format null", () => {
-                    expect(formatter(null)).toBe("");
+                    expect(formatter(null, false)).toBe("");
+                    expect(formatter(null, true)).toBe("(Blank)");
                 });
 
                 it("format empty", () => {
-                    expect(formatter("")).toBe("");
+                    expect(formatter("", false)).toBe("");
+                    expect(formatter("", true)).toBe("");
                 });
 
                 it("format non-null value", () => {
-                    expect(formatter(2010)).not.toBeNull();
+                    expect(formatter(2010, false)).not.toBeNull();
+                    expect(formatter(2010, true)).not.toBeNull();
                 });
 
                 it("format datetime value", () => {
-                    expect(formatter(new Date(599914800000))).toBe('1/4/1989');
+                    expect(formatter(new Date(599914800000), false)).toBe('1/4/1989');
+                    expect(formatter(new Date(599914800000), true)).toBe('1/4/1989');
                 });
             });
         });
@@ -627,6 +669,13 @@ module powerbitests {
             let displayUnits = valueFormatter.getDisplayUnits(powerbi.DisplayUnitSystemType.Default);
             expect(displayUnits).toBeDefined();
             expect(displayUnits.length).toBeGreaterThan(0);
+        });
+
+        it("DisplayUnitSystem doesn't null ref when given non-number values", () => {
+            let spy = spyOn(debug, "assert");
+            let displayUnitSystem = new powerbi.DisplayUnitSystem();
+            expect(displayUnitSystem.format(<any>"cat", "0 %;-0 %;0 %")).toEqual("cat");
+            expect(spy).toHaveBeenCalledWith(false, 'value must be a number');
         });
     });
 }

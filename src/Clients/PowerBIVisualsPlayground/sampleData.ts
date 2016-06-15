@@ -24,6 +24,8 @@
  *  THE SOFTWARE.
  */
 
+/// <reference path="./_references.ts"/>
+
 module powerbi.visuals.sampleData {
 
     import sampleDataViews = powerbi.visuals.sampleDataViews;
@@ -40,7 +42,6 @@ module powerbi.visuals.sampleData {
             new sampleDataViews.SalesByCountryData(),
             new sampleDataViews.SalesByDayOfWeekData(),
             new sampleDataViews.ServicesByUsers(),
-            new sampleDataViews.SimpleAreaRangeData(),
             new sampleDataViews.SimpleFunnelData(),
             new sampleDataViews.SimpleGaugeData(),
             new sampleDataViews.SimpleMatrixData(),
@@ -52,7 +53,8 @@ module powerbi.visuals.sampleData {
             new sampleDataViews.SimpleTimelineData(),
             new sampleDataViews.SimpleHistogramData(),
             new sampleDataViews.SimpleDataByCountries(),
-            new sampleDataViews.SimpleCountriesData()
+            new sampleDataViews.SimpleCountriesData(),
+            new sampleDataViews.BulletChartData()
         ];
 
         /**

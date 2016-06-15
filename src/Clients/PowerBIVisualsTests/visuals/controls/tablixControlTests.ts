@@ -24,15 +24,14 @@
  *  THE SOFTWARE.
  */
 
-
+/// <reference path="../../_references.ts"/>
 
 module powerbitests {
     import Controls = powerbi.visuals.controls;
     import InternalControls = powerbi.visuals.controls.internal;
     import TablixLayoutManager = powerbi.visuals.controls.internal.TablixLayoutManager;
 
-    let colWidthChangedCallback = false;
-    let colWidthCallback = [50];
+    let colWidths: Controls.ColumnWidthObject[] = [{ queryName: "Column", width: 50 }];
     let parentElement;
 
     describe("TablixGrid", () => {
@@ -64,8 +63,9 @@ module powerbitests {
             grid.onStartRenderingIteration();
             let col0 = grid.getOrCreateColumn(0);
             expect(col0.getContextualWidth()).toBe(50);
-            col0.resize(35);
-            expect(colWidthCallback[0]).toBe(35);
+            col0.onResize(35);
+            col0.onResizeEnd(35);
+            expect(colWidths[0].width).toBe(35);
         });
 
         it("CalculateWidth AutoSize property off ", function () {
@@ -75,7 +75,7 @@ module powerbitests {
             gridPresenter["_owner"] = grid;
             grid["_owner"] = control;
             let layoutManager = control.layoutManager;
-            
+
             // Mock setting of property to false
             let columnLayoutManager = layoutManager.columnLayoutManager;
             layoutManager.onStartRenderingIteration(false);
@@ -155,73 +155,231 @@ module powerbitests {
                 });
                 layoutManager = tablixControl.layoutManager;
 
-                let actualFontSize = $(parentElement).find('.bi-tablix').css('font-size');
+                let actualFontSize = $(parentElement).find('.tablixCanvas').css('font-size');
                 expect(actualFontSize).toBe('24px');
             });
         });
 
-        it("Render clear calls clearRows once", () => {
+        describe('clearRows', () => {
+            it("Render clear calls clearRows once", () => {
 
-            // Force a few rendering iterations.
-            let counter: number = 3;
-            layoutManager["onEndRenderingIteration"] = () => { return 0 === counter--; };
+                // Force a few rendering iterations.
+                let counter: number = 3;
+                layoutManager["onEndRenderingIteration"] = () => { return 0 === counter--; };
 
-            let spy = spyOn(layoutManager.grid, "clearRows");
-            tablixControl.refresh(true);
+                let spy = spyOn(layoutManager.grid, "clearRows");
+                tablixControl.refresh(true);
 
-            expect(spy.calls.all().length).toBe(1);
+                expect(spy.calls.all().length).toBe(1);
+            });
+
+            it("Render clear false no clearRows call", () => {
+                let counter: number = 1;
+                layoutManager["onEndRenderingIteration"] = () => { return 0 === counter--; };
+
+                let spy = spyOn(layoutManager.grid, "clearRows");
+                tablixControl.refresh(false);
+                expect(spy).not.toHaveBeenCalled();
+            });
         });
 
-        it("Render clear false no clearRows call", () => {
-            let counter: number = 1;
-            layoutManager["onEndRenderingIteration"] = () => { return 0 === counter--; };
+        describe('scroll with mousewheel', () => {
+            let spyVerticalScrolling: jasmine.Spy;
+            let spyHorizontalScrolling: jasmine.Spy;
+            let evt: MouseWheelEvent;
 
-            let spy = spyOn(layoutManager.grid, "clearRows");
-            tablixControl.refresh(false);
-            expect(spy).not.toHaveBeenCalled();
-        });
+            beforeEach(() => {
+                spyVerticalScrolling = spyOn(tablixControl.rowDimension.scrollbar, "onMouseWheel");
+                spyVerticalScrolling.and.stub();
+                spyHorizontalScrolling = spyOn(tablixControl.columnDimension.scrollbar, "onMouseWheel");
+                spyHorizontalScrolling.and.stub();
+            });
 
-        it("DOMMouseScroll dispatches to row scrollbar", () => {
-            let spy = spyOn(tablixControl.rowDimension.scrollbar, "onFireFoxMouseWheel");
-            spy.and.stub();
-            tablixControl.rowDimension.scrollbar["_visible"] = true;
-            tablixControl.container.dispatchEvent(helpers.createMouseWheelEvent("DOMMouseScroll", -100));
+            afterEach(() => {
+                expect(evt.defaultPrevented).toBeTruthy();
+            });
 
-            expect(spy).toHaveBeenCalled();
-        });
+            it("Y Scrolling - No scrollbar", () => {
+                showVerticalScroll(false);
+                showHorizontalScroll(false);
 
-        it("mousewheel dispatches to row scrollbar", () => {
-            let spy = spyOn(tablixControl.rowDimension.scrollbar, "onMouseWheel");
-            spy.and.stub();
-            tablixControl.rowDimension.scrollbar["_visible"] = true;
-            tablixControl.container.dispatchEvent(helpers.createMouseWheelEvent("mousewheel", -100));
+                // Firefox
+                evt = sendDomMouseScroll(-100);
+                expect(spyVerticalScrolling).not.toHaveBeenCalled();
+                expect(spyHorizontalScrolling).not.toHaveBeenCalled();
+                expect(evt.defaultPrevented).toBeTruthy();
 
-            expect(spy).toHaveBeenCalled();
-        });
+                // Others
+                evt = sendMouseWheel(0, -100);
+                expect(spyVerticalScrolling).not.toHaveBeenCalled();
+                expect(spyHorizontalScrolling).not.toHaveBeenCalled();
+            });
 
-        it("mousewheel dispatches to dimension scrollbar", () => {
-            let spy = spyOn(tablixControl.columnDimension.scrollbar, "onMouseWheel");
-            spy.and.stub();
-            tablixControl.rowDimension.scrollbar["_visible"] = false;
-            tablixControl.columnDimension.scrollbar["_visible"] = true;
-            tablixControl.container.dispatchEvent(helpers.createMouseWheelEvent("mousewheel", -100));
+            it("Y Scrolling - Vertical scrollbar", () => {
+                showVerticalScroll(true);
+                showHorizontalScroll(false);
 
-            expect(spy).toHaveBeenCalled();
+                // Firefox
+                sendDomMouseScroll(-100);
+                expect(spyVerticalScrolling).toHaveBeenCalledTimes(1);
+                expect(spyHorizontalScrolling).not.toHaveBeenCalled();
+                expect(evt.defaultPrevented).toBeTruthy();
+
+                // Others
+                evt = sendMouseWheel(0, -100);
+                expect(spyVerticalScrolling).toHaveBeenCalledTimes(2);
+                expect(spyHorizontalScrolling).not.toHaveBeenCalled();
+            });
+
+            it("Y scrolling - Horizontal scrollbar", () => {
+                showVerticalScroll(false);
+                showHorizontalScroll(true);
+
+                // Firefox
+                sendDomMouseScroll(-100);
+                expect(spyVerticalScrolling).not.toHaveBeenCalled();
+                expect(spyHorizontalScrolling).toHaveBeenCalledTimes(1);
+                expect(evt.defaultPrevented).toBeTruthy();
+
+                // Others
+                evt = sendMouseWheel(0, -100);
+                expect(spyVerticalScrolling).not.toHaveBeenCalled();
+                expect(spyHorizontalScrolling).toHaveBeenCalledTimes(2);
+            });
+
+            it("Y scrolling - Both scrollbars", () => {
+                showVerticalScroll(true);
+                showHorizontalScroll(true);
+
+                // Firefox
+                sendDomMouseScroll(-100);
+                expect(spyVerticalScrolling).toHaveBeenCalledTimes(1);
+                expect(spyHorizontalScrolling).not.toHaveBeenCalled();
+                expect(evt.defaultPrevented).toBeTruthy();
+
+                // Others
+                evt = sendMouseWheel(0, -100);
+                expect(spyVerticalScrolling).toHaveBeenCalledTimes(2);
+                expect(spyHorizontalScrolling).not.toHaveBeenCalled();
+                
+            });
+
+            it("X Scrolling - No scrollbar", () => {
+                showVerticalScroll(false);
+                showHorizontalScroll(false);
+
+                sendMouseWheel(-100, 0);
+                expect(spyVerticalScrolling).not.toHaveBeenCalled();
+                expect(spyHorizontalScrolling).not.toHaveBeenCalled();
+                
+            });
+
+            it("X Scrolling - Vertical scrollbar", () => {
+                showVerticalScroll(true);
+                showHorizontalScroll(false);
+
+                sendMouseWheel(-100, 0);
+                expect(spyVerticalScrolling).not.toHaveBeenCalled();
+                expect(spyHorizontalScrolling).not.toHaveBeenCalled();
+                
+            });
+
+            it("X scrolling - Horizontal scrollbar", () => {
+                showVerticalScroll(false);
+                showHorizontalScroll(true);
+
+                sendMouseWheel(-100, 0);
+                expect(spyVerticalScrolling).not.toHaveBeenCalled();
+                expect(spyHorizontalScrolling).toHaveBeenCalledTimes(1);
+                
+            });
+
+            it("X scrolling - Both scrollbars", () => {
+                showVerticalScroll(true);
+                showHorizontalScroll(true);
+
+                sendMouseWheel(-100, 0);
+                expect(spyVerticalScrolling).not.toHaveBeenCalled();
+                expect(spyHorizontalScrolling).toHaveBeenCalledTimes(1);
+                
+            });
+
+            it("X/Y Scrolling - No scrollbar", () => {
+                showVerticalScroll(false);
+                showHorizontalScroll(false);
+
+                sendMouseWheel(-100, 100);
+                expect(spyVerticalScrolling).not.toHaveBeenCalled();
+                expect(spyHorizontalScrolling).not.toHaveBeenCalled();
+                
+            });
+
+            it("X/Y Scrolling - Vertical scrollbar", () => {
+                showVerticalScroll(true);
+                showHorizontalScroll(false);
+
+                sendMouseWheel(-100, 100);
+                expect(spyVerticalScrolling).toHaveBeenCalledTimes(1);
+                expect(spyHorizontalScrolling).not.toHaveBeenCalled();
+                
+            });
+
+            it("X/Y scrolling - Horizontal scrollbar", () => {
+                showVerticalScroll(false);
+                showHorizontalScroll(true);
+
+                sendMouseWheel(-100, 100);
+                expect(spyVerticalScrolling).not.toHaveBeenCalled();
+                expect(spyHorizontalScrolling).toHaveBeenCalledTimes(1);
+                
+            });
+
+            it("X scrolling - Both scrollbars", () => {
+                showVerticalScroll(true);
+                showHorizontalScroll(true);
+
+                sendMouseWheel(-100, 100);
+                expect(spyVerticalScrolling).toHaveBeenCalledTimes(1);
+                expect(spyHorizontalScrolling).toHaveBeenCalledTimes(1);
+                
+            });
+
+            function showHorizontalScroll(show: boolean) {
+                tablixControl.columnDimension.scrollbar["_visible"] = show;
+            }
+
+            function showVerticalScroll(show: boolean) {
+                tablixControl.rowDimension.scrollbar["_visible"] = show;
+            }
+
+            function sendDomMouseScroll(delta: number): MouseWheelEvent {
+                let ev = helpers.createMouseWheelEvent("DOMMouseScroll", 0, 0, delta);
+                tablixControl.container.dispatchEvent(ev);
+                return ev;
+            }
+
+            function sendMouseWheel(deltaX: number, deltaY: number): MouseWheelEvent {
+                let ev = helpers.createMouseWheelEvent("mousewheel", deltaX, deltaY, 0);
+                tablixControl.container.dispatchEvent(ev);
+                return ev;
+            }
         });
     });
 
     describe("Scrollbar", () => {
 
-        let scrollbar;
+        let scrollbar: Controls.Scrollbar;
+        let parentDiv: HTMLDivElement;
 
         beforeEach(() => {
-            scrollbar = new Controls.Scrollbar(document.createElement("div"));
+            parentDiv = document.createElement("div");
+            scrollbar = new Controls.Scrollbar(parentDiv, Controls.TablixLayoutKind.Canvas);
         });
 
         it("Uses mouse wheel range", () => {
             let scrollSpy = spyOn(scrollbar, "scrollBy");
             scrollSpy.and.stub();
-            scrollbar.onMouseWheel(helpers.createMouseWheelEvent("mousewheel", -10));
+            scrollbar.onMouseWheel(-10);
 
             expect(scrollSpy).toHaveBeenCalledWith(1);
         });
@@ -232,9 +390,24 @@ module powerbitests {
             scrollbar._onscroll.push(() => callback());
             scrollbar.viewMin = 2;
             scrollbar.viewSize = 8;
-            scrollbar.onMouseWheel(helpers.createMouseWheelEvent("mousewheel", -240));
+            scrollbar.onMouseWheel(-240);
 
             expect(callbackCalled).toBeFalsy();
+        });
+
+        it("Scrollbar is attached for Canvas", (done) => {
+            expect(parentDiv.children.length).toBe(1);
+            done();
+        });
+
+        it("Scrollbar is not attached for Dashboard", (done) => {
+            while (parentDiv.firstChild) {
+                parentDiv.removeChild(parentDiv.firstChild);
+            }
+
+            scrollbar = new Controls.Scrollbar(parentDiv, Controls.TablixLayoutKind.DashboardTile);
+            expect(parentDiv.children.length).toBe(0);
+            done();
         });
     });
 
@@ -278,8 +451,6 @@ module powerbitests {
             unbindEmptySpaceHeaderCell: (cell: Controls.ITablixCell) => { },
             bindEmptySpaceFooterCell: (cell: Controls.ITablixCell) => { },
             unbindEmptySpaceFooterCell: (cell: Controls.ITablixCell) => { },
-            setTablixColumnSeparator: (cell: Controls.ITablixCell) => { },
-            setTablixRegionStyle: (cell: Controls.ITablixCell, fontColor: string, backgroundColor, outline: string, outlineWeight: number, outlineColor: string) => { },
             getHeaderLabel: (item: any): string => { return "label"; },
             getCellContent: (item: any): string => { return "label"; },
             hasRowGroups: () => true
@@ -288,35 +459,39 @@ module powerbitests {
 
     function createMockNavigator(): Controls.ITablixHierarchyNavigator {
         return {
-            getDepth: (hierarchy: any): number=> 1,
-            getLeafCount: (hierarchy: any): number=> 1,
-            getLeafAt: (hierarchy: any, index: number): any=> 1,
-            getParent: (item: any): any=> { },
-            getIndex: (item: any): number=> 1,
-            isLeaf: (item: any): boolean=> true,
-            isRowHierarchyLeaf: (cornerItem: any): boolean=> true,
-            isColumnHierarchyLeaf: (cornerItem: any): boolean=> true,
-            isLastItem: (item: any, items: any): boolean=> true,
-            getChildren: (item: any): any=> { },
-            getCount: (items: any): number=> 1,
-            getAt: (items: any, index: number): any=> 1,
-            getLevel: (item: any): number=> 1,
-            getIntersection: (rowItem: any, columnItem: any): any=> { },
-            getCorner: (rowLevel: number, columnLevel: number): any=> { },
-            headerItemEquals: (item1: any, item2: any): boolean=> true,
-            bodyCellItemEquals: (item1: any, item2: any): boolean=> true,
-            cornerCellItemEquals: (item1: any, item2: any): boolean=> true
+            getColumnHierarchyDepth: (): number => 1,
+            getRowHierarchyDepth: (): number => 1,
+            getLeafCount: (hierarchy: any): number => 1,
+            getLeafAt: (hierarchy: any, index: number): any => 1,
+            getParent: (item: any): any => { },
+            getIndex: (item: any): number => 1,
+            isLeaf: (item: any): boolean => true,
+            isRowHierarchyLeaf: (cornerItem: any): boolean => true,
+            isColumnHierarchyLeaf: (cornerItem: any): boolean => true,
+            isLastItem: (item: any, items: any): boolean => true,
+            getChildren: (item: any): any => { },
+            getCount: (items: any): number => 1,
+            getAt: (items: any, index: number): any => 1,
+            getLevel: (item: any): number => 1,
+            getIntersection: (rowItem: any, columnItem: any): any => { },
+            getCorner: (rowLevel: number, columnLevel: number): any => { },
+            headerItemEquals: (item1: any, item2: any): boolean => true,
+            bodyCellItemEquals: (item1: any, item2: any): boolean => true,
+            cornerCellItemEquals: (item1: any, item2: any): boolean => true,
+            isFirstItem: (item: any, items: any): boolean => true,
+            areAllParentsFirst: (item: any): boolean => true,
+            areAllParentsLast: (item: any): boolean => true,
+            getChildrenLevelDifference: (item: any): number => 1,
         };
     }
 
     function createMockColumnWidthManager(): Controls.TablixColumnWidthManager {
-        let columnWidthManager = new Controls.TablixColumnWidthManager(null /* dataView*/, false);
-        columnWidthManager.columnWidthResizeCallback = () => {
-            colWidthChangedCallback = true;
-            colWidthCallback[0] = 35;
+        let columnWidthManager = new Controls.TablixColumnWidthManager(null /* dataView*/, true, null);
+        columnWidthManager.onColumnWidthChanged = () => {
+            colWidths[0].width = 35;
         };
 
-        columnWidthManager.getColumnWidths = () => colWidthCallback;
+        columnWidthManager['columnWidthObjects'] = colWidths;
         return columnWidthManager;
     }
 } 

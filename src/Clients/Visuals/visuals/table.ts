@@ -1,8 +1,8 @@
-﻿/*
+/*
  *  Power BI Visualizations
  *
  *  Copyright (c) Microsoft Corporation
- *  All rights reserved. 
+ *  All rights reserved.
  *  MIT License
  *
  *  Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -11,14 +11,14 @@
  *  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
  *  copies of the Software, and to permit persons to whom the Software is
  *  furnished to do so, subject to the following conditions:
- *   
- *  The above copyright notice and this permission notice shall be included in 
+ *
+ *  The above copyright notice and this permission notice shall be included in
  *  all copies or substantial portions of the Software.
- *   
- *  THE SOFTWARE IS PROVIDED *AS IS*, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
- *  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
- *  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE 
- *  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER 
+ *
+ *  THE SOFTWARE IS PROVIDED *AS IS*, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ *  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ *  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ *  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
  *  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  *  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  *  THE SOFTWARE.
@@ -29,7 +29,9 @@
 module powerbi.visuals {
     import TablixFormattingProperties = powerbi.visuals.controls.TablixFormattingPropertiesTable;
     import TablixUtils = controls.internal.TablixUtils;
-    import UrlUtils = jsCommon.UrlUtils;
+    import TablixObjects = controls.internal.TablixObjects;
+    import EdgeSettings = TablixUtils.EdgeSettings;
+    import EdgeType = TablixUtils.EdgeType;
 
     export interface DataViewVisualTable extends DataViewTable {
         visualRows?: DataViewVisualTableRow[];
@@ -38,23 +40,11 @@ module powerbi.visuals {
 
     export interface DataViewVisualTableRow {
         index: number;
-        values: any[];
+        values: DataViewTableRow;
     }
 
     export interface TableDataAdapter {
-        update(table: DataViewTable): void;
-    }
-
-    export interface TableCell {
-        dataPoint: any;
-        textContent?: string;
-        domContent?: JQuery;
-        isMeasure: boolean;
-        isTotal: boolean;
-        isBottomMost: boolean;
-        isLeftMost: boolean;
-        showUrl: boolean;
-        showImage?: boolean;
+        update(table: DataViewTable, isDataComplete: boolean): void;
     }
 
     export interface TableTotal {
@@ -62,46 +52,58 @@ module powerbi.visuals {
     }
 
     export class TableHierarchyNavigator implements controls.ITablixHierarchyNavigator, TableDataAdapter {
-
         private tableDataView: DataViewVisualTable;
         private formatter: ICustomValueColumnFormatter;
 
-        constructor(tableDataView: DataViewVisualTable, formatter: ICustomValueColumnFormatter) {
+        /**
+         * True if the model is not expecting more data
+        */
+        private isDataComplete: boolean;
+
+        constructor(tableDataView: DataViewVisualTable, isDataComplete: boolean, formatter: ICustomValueColumnFormatter) {
             debug.assertValue(tableDataView, 'tableDataView');
             debug.assertValue(formatter, 'formatter');
 
             this.tableDataView = tableDataView;
+            this.isDataComplete = isDataComplete;
             this.formatter = formatter;
         }
-        
+
         /**
-         * Returns the depth of a hierarchy.
-         */
-        public getDepth(hierarchy: any): number {
+        * Returns the depth of the Columnm hierarchy.
+        */
+        public getColumnHierarchyDepth(): number {
             return 1;
         }
-        
+
+        /**
+        * Returns the depth of the Row hierarchy.
+        */
+        public getRowHierarchyDepth(): number {
+            return 1;
+        }
+
         /**
          * Returns the leaf count of a hierarchy.
          */
         public getLeafCount(hierarchy: any): number {
             return hierarchy.length;
         }
-        
+
         /**
          * Returns the leaf member of a hierarchy at a specified index.
          */
         public getLeafAt(hierarchy: any, index: number): any {
             return hierarchy[index];
         }
-        
+
         /**
          * Returns the specified hierarchy member parent.
          */
         public getParent(item: any): any {
             return null;
         }
-        
+
         /**
          * Returns the index of the hierarchy member relative to its parent.
          */
@@ -126,7 +128,7 @@ module powerbi.visuals {
         private getColumnIndex(item: any): number {
             return TableHierarchyNavigator.getIndex(this.tableDataView.columns, item);
         }
-        
+
         /**
          * Checks whether a hierarchy member is a leaf.
          */
@@ -141,52 +143,75 @@ module powerbi.visuals {
         public isColumnHierarchyLeaf(cornerItem: any): boolean {
             return true;
         }
-        
+
+        public isFirstItem(item: MatrixVisualNode, items: MatrixVisualNode[]): boolean {
+            // checking for item.index is unreliable because reordering the columns would cause a mismatch between index and items order
+            return item === items[0];
+        }
+
+        public areAllParentsFirst(item: any, items: any): boolean {
+            return this.isFirstItem(item, items);
+        }
+
         /**
          * Checks whether a hierarchy member is the last item within its parent.
          */
-        public isLastItem(item: any, items: any): boolean {
-            return false;
+        public isLastItem(item: any, items: any[]): boolean {
+            debug.assertValue(item, 'item');
+
+            // If it's a row, we need to check if data is complete
+            return (items === this.tableDataView.columns || this.isDataComplete)
+                && (item === _.last(items));
         }
-        
+
+        public areAllParentsLast(item: any, items: any[]): boolean {
+            return this.isLastItem(item, items);
+        }
+
         /**
          * Gets the children members of a hierarchy member.
          */
         public getChildren(item: any): any {
             return null;
         }
-        
+
+        public getChildrenLevelDifference(item: any) {
+            return Infinity;
+        }
+
         /**
          * Gets the members count in a specified collection.
          */
         public getCount(items: any): number {
             return items.length;
         }
-        
+
         /**
          * Gets the member at the specified index.
          */
         public getAt(items: any, index: number): any {
             return items[index];
         }
-        
+
         /**
          * Gets the hierarchy member level.
          */
         public getLevel(item: any): number {
             return 0;
         }
-        
+
         /**
          * Returns the intersection between a row and a column item.
          */
-        public getIntersection(rowItem: any, columnItem: DataViewMetadataColumn): TableCell {
+        public getIntersection(rowItem: any, columnItem: DataViewMetadataColumn): TablixUtils.TablixVisualCell {
             let value: any;
             let isTotal: boolean = false;
-            let isBottomMost: boolean = false;
+            let position = new TablixUtils.CellPosition();
 
-            let columnIndex = TableHierarchyNavigator.getIndex(this.tableDataView.columns, columnItem);
-            let isLeftMost = columnIndex === 0 ? true : false;
+            let columnIndex: number = TableHierarchyNavigator.getIndex(this.tableDataView.columns, columnItem);;
+            position.column.index = columnIndex;
+            position.column.isFirst = columnIndex === 0 ? true : false;
+            position.column.isLast = columnIndex === this.tableDataView.columns.length - 1;
 
             let totalRow = <TableTotal>rowItem;
             if (totalRow.totalCells != null) {
@@ -194,36 +219,34 @@ module powerbi.visuals {
                 value = totalRow.totalCells[columnIndex];
             }
             else {
-                let bottomRow = this.tableDataView.visualRows[this.tableDataView.visualRows.length - 1];
-                isBottomMost = bottomRow === rowItem;
-                value = (<DataViewVisualTableRow>rowItem).values[columnIndex];
+                let row = <DataViewVisualTableRow>rowItem;
+                let rowIndex = row.index;
+                position.row.index = rowIndex;
+                position.row.isFirst = rowIndex === 0;
+                position.row.isLast = this.isDataComplete && (rowIndex === this.tableDataView.rows.length - 1);
+                value = row.values[columnIndex];
             }
 
-            let formattedValue = this.formatter(value, columnItem, TablixUtils.TablixFormatStringProp);
-            let domContent: JQuery;
-            let textContent: string;
-            if (TablixUtils.isValidStatusGraphic(columnItem.kpi, formattedValue))
-                domContent = TablixUtils.createKpiDom(columnItem.kpi, formattedValue);
-            else
-                textContent = formattedValue;
+            let cellItem = new TablixUtils.TablixVisualCell(value, isTotal, columnItem, this.formatter, false);
+            cellItem.position = position;
 
-            return {
-                dataPoint: value,
-                textContent: textContent,
-                domContent: domContent,
-                isMeasure: columnItem.isMeasure,
-                isTotal: isTotal,
-                isBottomMost: isBottomMost,
-                showUrl: converterHelper.isWebUrlColumn(columnItem) && UrlUtils.isValidUrl(formattedValue),
-                showImage: converterHelper.isImageUrlColumn(columnItem) && UrlUtils.isValidImageUrl(formattedValue),
-                isLeftMost: isLeftMost
-            };
+            let tableRow = <DataViewVisualTableRow>rowItem;
+            if (tableRow && tableRow.values) {
+                let rowObjects = tableRow.values.objects;
+                if (rowObjects) {
+                    let cellObject = rowObjects[columnIndex];
+                    if (cellObject) {
+                        cellItem.backColor = TablixObjects.PropValuesBackColor.getValue<string>(cellObject);
+                    }
+                }
+            }
+            return cellItem;
         }
-        
+
         /**
-         * Returns the corner cell between a row and a column level. 
+         * Returns the corner cell between a row and a column level.
          */
-        public getCorner(rowLevel: number, columnLevel: number): any {
+        public getCorner(rowLevel: number, columnLevel: number): TablixUtils.TablixVisualCell {
             return null;
         }
 
@@ -231,7 +254,7 @@ module powerbi.visuals {
             if (item1 === item2)
                 return true;
 
-            // Typechecking does not work with interfaces nor at runtime. We need to explicitly check for 
+            // Typechecking does not work with interfaces nor at runtime. We need to explicitly check for
             // properties of DataViewMetadataColumn to determine if we can use the column equivalency check.
             // We expect this method to handle either VisualTableRows or DataViewMetadataColumns so checking
             // for displayName should be sufficient.
@@ -247,8 +270,9 @@ module powerbi.visuals {
             return false;
         }
 
-        public bodyCellItemEquals(item1: TableCell, item2: TableCell): boolean {
-            return (item1.dataPoint === item2.dataPoint);
+        public bodyCellItemEquals(item1: TablixUtils.TablixVisualCell, item2: TablixUtils.TablixVisualCell): boolean {
+            //return (item1.dataPoint === item2.dataPoint);
+            return (item1.isMatch(item2));
         }
 
         public cornerCellItemEquals(item1: any, item2: any): boolean {
@@ -256,8 +280,9 @@ module powerbi.visuals {
             return true;
         }
 
-        public update(table: DataViewVisualTable): void {
+        public update(table: DataViewVisualTable, isDataComplete: boolean): void {
             this.tableDataView = table;
+            this.isDataComplete = isDataComplete;
         }
 
         public static getIndex(items: any[], item: any): number {
@@ -284,22 +309,18 @@ module powerbi.visuals {
         onColumnHeaderClick?(queryName: string, sortDirection: SortDirection): void;
         layoutKind?: controls.TablixLayoutKind;
     }
-    
+
     /**
      * Note: Public for testability.
      */
     export class TableBinder implements controls.ITablixBinder {
-
-        public static sortIconContainerClassName = "bi-sort-icon-container";
-        public static columnHeaderClassName = 'bi-table-column-header';
-        private static rowClassName = 'bi-table-row';
-        private static lastRowClassName = 'bi-table-last-row';
-        private static footerClassName = 'bi-table-footer';
-        private static numericCellClassName = 'bi-table-cell-numeric';
-        private static nonBreakingSpace = '&nbsp;';
         private options: TableBinderOptions;
         private formattingProperties: TablixFormattingProperties;
         private tableDataView: DataViewVisualTable;
+
+        private textHeightHeader: number;
+        private textHeightValue: number;
+        private textHeightTotal: number;
 
         constructor(options: TableBinderOptions) {
             this.options = options;
@@ -308,22 +329,25 @@ module powerbi.visuals {
         public onDataViewChanged(dataView: DataViewVisualTable): void {
             this.tableDataView = dataView;
             this.formattingProperties = dataView.formattingProperties;
+
+            this.updateTextHeights();
         }
 
-        public setTablixColumnSeparator(cell: controls.ITablixCell): void {
-            if (this.formattingProperties.columns.showSeparators)
-                cell.extension.setColumnSeparator(this.formattingProperties.columns.separatorColor, this.formattingProperties.columns.separatorWeight);
-        }
+        private updateTextHeights(): void {
+            let textProps: TextProperties = {
+                fontFamily: '',
+                fontSize: TablixObjects.getTextSizeInPx(this.formattingProperties.general.textSize),
+                text: 'a',
+            };
 
-        public setTablixRegionStyle(cell: controls.ITablixCell, fontColor: string, backgroundColor, outline: string, outlineWeight: number, outlineColor: string): void {
-            if (fontColor !== "")
-                cell.extension.setFontColor(fontColor);
-            if (backgroundColor)
-                cell.extension.setBackgroundColor(backgroundColor);
+            textProps.fontFamily = TablixUtils.FontFamilyHeader;
+            this.textHeightHeader = Math.ceil(TextMeasurementService.measureSvgTextHeight(textProps));
 
-            let borderStyle = 'solid';
-            let borderWeight = VisualBorderUtil.getBorderWidth(outline, outlineWeight);
-            cell.extension.setOutline(borderStyle, outlineColor, borderWeight);
+            textProps.fontFamily = TablixUtils.FontFamilyCell;
+            this.textHeightValue = Math.ceil(TextMeasurementService.measureSvgTextHeight(textProps));
+
+            textProps.fontFamily = TablixUtils.FontFamilyTotal;
+            this.textHeightTotal = Math.ceil(TextMeasurementService.measureSvgTextHeight(textProps));
         }
 
         public onStartRenderingSession(): void {
@@ -331,52 +355,104 @@ module powerbi.visuals {
 
         public onEndRenderingSession(): void {
         }
-        
+
         /**
          * Row Header.
          */
         public bindRowHeader(item: any, cell: controls.ITablixCell): void {
-            this.ensureHeight(item, cell);
+            cell.contentHeight = this.textHeightValue;
+
+            // To clear the CSS classes that adds paddings
+            TablixUtils.clearCellStyle(cell);
+
             if (this.options.onBindRowHeader)
                 this.options.onBindRowHeader(item);
         }
 
         public unbindRowHeader(item: any, cell: controls.ITablixCell): void {
+
         }
-        
+
         /**
          * Column Header.
          */
 
         public bindColumnHeader(item: DataViewMetadataColumn, cell: controls.ITablixCell): void {
-            let columnIndex = TableHierarchyNavigator.getIndex(this.tableDataView.columns, item);
-            cell.extension.setContainerStyle(TableBinder.columnHeaderClassName);
             cell.extension.disableDragResize();
-            cell.extension.setTextAndTooltip(item.displayName);
+            TablixUtils.resetCellCssClass(cell);
 
+            TablixUtils.addCellCssClass(cell, TablixUtils.CssClassTablixHeader);
+            TablixUtils.addCellCssClass(cell, TablixUtils.CssClassTablixColumnHeaderLeaf);
+
+            let cellStyle = new TablixUtils.CellStyle();
+            // Set default style
+            cellStyle.fontFamily = TablixUtils.FontFamilyHeader;
+            cellStyle.fontColor = TablixUtils.FontColorHeaders;
+            cellStyle.borders.bottom = new EdgeSettings(TablixObjects.PropGridOutlineWeight.defaultValue, TablixObjects.PropGridOutlineColor.defaultValue);
+
+            cell.contentHeight = this.textHeightHeader;
+
+            let element = cell.extension.contentHost;
             if (this.sortIconsEnabled())
-                TablixUtils.appendSortImageToColumnHeader(item, cell);
+                element = TablixUtils.addSortIconToColumnHeader(item.sort, element);
+
+            TablixUtils.setCellTextAndTooltip(item.displayName, element, cell.extension.contentHost);
 
             if (this.options.onColumnHeaderClick) {
                 let handler = (e: MouseEvent) => {
-                    let sortDirection: SortDirection = TablixUtils.reverseSort(item.sort);
-                    this.options.onColumnHeaderClick(item.queryName ? item.queryName : item.displayName, sortDirection);
+                    if (TablixUtils.isValidSortClick(e)) {
+                        let sortDirection: SortDirection = TablixUtils.reverseSort(item.sort);
+                        this.options.onColumnHeaderClick(item.queryName ? item.queryName : item.displayName, sortDirection);
+                    }
                 };
                 cell.extension.registerClickHandler(handler);
             }
+            this.setColumnHeaderStyle(cell, cellStyle);
 
-            if (this.formattingProperties) {
-                this.setTablixRegionStyle(cell, this.formattingProperties.header.fontColor, this.formattingProperties.header.backgroundColor, this.formattingProperties.header.outline, this.formattingProperties.general.outlineWeight, this.formattingProperties.general.outlineColor);
+            cell.applyStyle(cellStyle);
+        }
 
-                //set Column separator for table
-                if (columnIndex > 0)
-                    this.setTablixColumnSeparator(cell);
+        private setColumnHeaderStyle(cell: controls.ITablixCell, style: TablixUtils.CellStyle): void {
+            let propsGrid = this.formattingProperties.grid;
+            let props = this.formattingProperties.columnHeaders;
+            let propsTotal = this.formattingProperties.total;
+            let propsValues = this.formattingProperties.values;
+
+            style.borders.top = new EdgeSettings();
+            style.borders.top.applyParams(outline.showTop(props.outline), propsGrid.outlineWeight, propsGrid.outlineColor, EdgeType.Outline);
+
+            style.borders.bottom = new EdgeSettings();
+            style.borders.bottom.applyParams(outline.showBottom(props.outline), propsGrid.outlineWeight, propsGrid.outlineColor, EdgeType.Outline);
+
+            style.borders.left = new EdgeSettings();
+            if (cell.position.column.isFirst) {
+                style.borders.left.applyParams(outline.showLeft(props.outline), propsGrid.outlineWeight, propsGrid.outlineColor, EdgeType.Outline);
+
+                // If we dont have left border, but Footer or Body has, we need to apply extra padding
+                if (!outline.showLeft(props.outline) && (outline.showLeft(propsTotal.outline) || outline.showLeft(propsValues.outline)))
+                    style.paddings.left += propsGrid.outlineWeight;
+            } // else: do nothing
+
+            style.borders.right = new EdgeSettings();
+            if (cell.position.column.isLast) {
+                style.borders.right.applyParams(outline.showRight(props.outline), propsGrid.outlineWeight, propsGrid.outlineColor, EdgeType.Outline);
+
+                // If we dont have right border, but Footer or Body has, we need to apply extra padding
+                if (!outline.showRight(props.outline) && (outline.showRight(propsTotal.outline) || outline.showRight(propsValues.outline)))
+                    style.paddings.right += propsGrid.outlineWeight;
             }
+            else {
+                style.borders.right.applyParams(propsGrid.gridVertical, propsGrid.gridVerticalWeight, propsGrid.gridVerticalColor, EdgeType.Gridline);
+            }
+
+            style.fontColor = props.fontColor;
+            style.backColor = props.backColor;
+            style.paddings.top = style.paddings.bottom = propsGrid.rowPadding;
         }
 
         public unbindColumnHeader(item: any, cell: controls.ITablixCell): void {
-            cell.extension.clearContainerStyle();
-            cell.extension.clearTextAndTooltip();
+            TablixUtils.clearCellStyle(cell);
+            TablixUtils.clearCellTextAndTooltip(cell);
 
             if (this.sortIconsEnabled())
                 TablixUtils.removeSortIcons(cell);
@@ -385,50 +461,167 @@ module powerbi.visuals {
                 cell.extension.unregisterClickHandler();
             }
         }
-        
+
         /**
          * Body Cell.
          */
-        public bindBodyCell(item: TableCell, cell: controls.ITablixCell): void {
-            if (item.showUrl)
-                TablixUtils.appendATagToBodyCell(item.textContent, cell);
-            else if (item.showImage)
-                TablixUtils.appendImgTagToBodyCell(item.textContent, cell);
-            else if (!_.isEmpty(item.domContent))
-                $(cell.extension.contentHost).append(item.domContent);
+        public bindBodyCell(item: TablixUtils.TablixVisualCell, cell: controls.ITablixCell): void {
+            TablixUtils.resetCellCssClass(cell);
+            let imgHeight: number;
+            imgHeight = this.formattingProperties.grid.imageHeight;
+
+            let cellStyle = new TablixUtils.CellStyle();
+
+            if (item.isImage) {
+                cell.contentHeight = imgHeight;
+            }
+            else {
+                cell.contentHeight = this.textHeightValue;
+            }
+
+            let element = cell.extension.contentHost;
+
+            if (item.isUrl && item.isValidUrl) {
+                TablixUtils.appendATagToBodyCell(item.textContent, element, this.formattingProperties.values.urlIcon);
+            }
+            else if (item.isImage && item.isValidUrl) {
+                TablixUtils.appendImgTagToBodyCell(item.textContent, element, imgHeight);
+                cellStyle.hasImage = true;
+            }
+            else if (item.kpiContent) {
+                $(element).append(item.kpiContent);
+            }
             else if (item.textContent) {
-                cell.extension.setTextAndTooltip(item.textContent);
+                TablixUtils.setCellTextAndTooltip(item.textContent, element);
+            }
+            else {
+                TablixUtils.setCellTextAndTooltip(" ", element);
             }
 
-            let classNames = item.isTotal ?
-                TableBinder.footerClassName :
-                item.isBottomMost ? TableBinder.lastRowClassName : TableBinder.rowClassName;
+            if (item.isTotal) {
+                TablixUtils.addCellCssClass(cell, TablixUtils.CssClassTablixValueTotal);
+                TablixUtils.addCellCssClass(cell, TablixUtils.CssClassTableFooter);
 
-            if (item.isMeasure)
-                classNames += ' ' + TableBinder.numericCellClassName;
+                cellStyle.fontFamily = TablixUtils.FontFamilyTotal;
+                cellStyle.borders.top = new EdgeSettings(TablixObjects.PropGridOutlineWeight.defaultValue, TablixObjects.PropGridOutlineColor.defaultValue);
 
-            cell.extension.setContainerStyle(classNames);
-
-            if (this.formattingProperties) {
-                let fontColor = item.isTotal ? this.formattingProperties.totals.fontColor : this.formattingProperties.rows.fontColor;
-                let backgroundColor = item.isTotal ? this.formattingProperties.totals.backgroundColor : this.formattingProperties.rows.backgroundColor;
-                let outlineStyle = item.isTotal ? this.formattingProperties.totals.outline : this.formattingProperties.rows.outline;
-
-                this.setTablixRegionStyle(cell, fontColor, backgroundColor, outlineStyle, this.formattingProperties.general.outlineWeight, this.formattingProperties.general.outlineColor);
-
-                if (this.formattingProperties.rows.showSeparators)
-                    cell.extension.setRowSeparator();
-
-                if (!item.isLeftMost)
-                    this.setTablixColumnSeparator(cell);
+                cell.contentHeight = this.textHeightTotal;
             }
+            else if (item.position.row.isLast) {
+                TablixUtils.addCellCssClass(cell, TablixUtils.CssClassTableBodyCellBottom);
+            }
+            else {
+                TablixUtils.addCellCssClass(cell, TablixUtils.CssClassTableBodyCell);
+                cellStyle.borders.bottom = new EdgeSettings(TablixObjects.PropGridHorizontalWeight.defaultValue, TablixObjects.PropGridHorizontalColor.defaultValue);
+            }
+
+            if (item.isNumeric)
+                TablixUtils.addCellCssClass(cell, TablixUtils.CssClassTablixValueNumeric);
+
+            if (item.isTotal)
+                this.setFooterStyle(cell, cellStyle);
+            else
+                this.setBodyStyle(item, cell, cellStyle);
+
+            cell.applyStyle(cellStyle);
         }
 
-        public unbindBodyCell(item: TableCell, cell: controls.ITablixCell): void {
-            cell.extension.clearContainerStyle();
-            cell.extension.clearTextAndTooltip();
+        private setBodyStyle(item: TablixUtils.TablixVisualCell, cell: controls.ITablixCell, style: TablixUtils.CellStyle): void {
+            let propsGrid = this.formattingProperties.grid;
+            let props = this.formattingProperties.values;
+            let propsTotal = this.formattingProperties.total;
+            let propsColumns = this.formattingProperties.columnHeaders;
+
+            style.borders.top = new EdgeSettings();
+            if (cell.position.row.isFirst) { // First Row
+                style.borders.top.applyParams(outline.showTop(props.outline), propsGrid.outlineWeight, propsGrid.outlineColor, EdgeType.Outline);
+            } // else: do nothing
+
+            style.borders.bottom = new EdgeSettings();
+            if (cell.position.row.isLast) { // Last Row
+                style.borders.bottom.applyParams(outline.showBottom(props.outline), propsGrid.outlineWeight, propsGrid.outlineColor, EdgeType.Outline);
+            }
+            else {
+                style.borders.bottom.applyParams(propsGrid.gridHorizontal, propsGrid.gridHorizontalWeight, propsGrid.gridHorizontalColor, EdgeType.Gridline);
+            }
+
+            style.borders.left = new EdgeSettings();
+            if (cell.position.column.isFirst) { // First Column
+                style.borders.left.applyParams(outline.showLeft(props.outline), propsGrid.outlineWeight, propsGrid.outlineColor, EdgeType.Outline);
+
+                // If we dont have left border, but Footer or Header has, we need to apply extra padding
+                if (!outline.showLeft(props.outline) && (outline.showLeft(propsTotal.outline) || outline.showLeft(propsColumns.outline)))
+                    style.paddings.left += propsGrid.outlineWeight;
+            } // else: do nothing
+
+            style.borders.right = new EdgeSettings();
+            if (cell.position.column.isLast) { // Last Column
+                style.borders.right.applyParams(outline.showRight(props.outline), propsGrid.outlineWeight, propsGrid.outlineColor, EdgeType.Outline);
+
+                // If we dont have right border, but Footer has, we need to apply extra padding
+                if (!outline.showRight(props.outline) && (outline.showRight(propsTotal.outline) || outline.showRight(propsColumns.outline)))
+                    style.paddings.right += propsGrid.outlineWeight;
+            }
+            else {
+                style.borders.right.applyParams(propsGrid.gridVertical, propsGrid.gridVerticalWeight, propsGrid.gridVerticalColor, EdgeType.Gridline);
+            }
+
+            style.fontColor = cell.position.row.index % 2 === 0 ? props.fontColorPrimary : props.fontColorSecondary;
+
+            // Conditional formatting on the cell overrides primary/secondary background colors.
+            if (item.backColor)
+                style.backColor = item.backColor;
+            else
+                style.backColor = cell.position.row.index % 2 === 0 ? props.backColorPrimary : props.backColorSecondary;
+
+            style.paddings.top = style.paddings.bottom = propsGrid.rowPadding;
         }
-        
+
+        private setFooterStyle(cell: controls.ITablixCell, style: TablixUtils.CellStyle): void {
+            let props = this.formattingProperties.total;
+            let propsGrid = this.formattingProperties.grid;
+            let propsValues = this.formattingProperties.values;
+            let propsColumns = this.formattingProperties.columnHeaders;
+
+            style.borders.top = new EdgeSettings();
+            style.borders.top.applyParams(outline.showTop(props.outline), propsGrid.outlineWeight, propsGrid.outlineColor, EdgeType.Outline);
+
+            style.borders.bottom = new EdgeSettings();
+            style.borders.bottom.applyParams(outline.showBottom(props.outline), propsGrid.outlineWeight, propsGrid.outlineColor, EdgeType.Outline);
+
+            style.borders.left = new EdgeSettings();
+            if (cell.position.column.isFirst) { // First Column
+                style.borders.left.applyParams(outline.showLeft(props.outline), propsGrid.outlineWeight, propsGrid.outlineColor, EdgeType.Outline);
+
+                // If we dont have left border, but values or column headers have, we need to apply padding
+                if (!outline.showLeft(props.outline) && (outline.showLeft(propsValues.outline) || outline.showLeft(propsColumns.outline)))
+                    style.paddings.left += propsGrid.outlineWeight;
+
+            } // else: do nothing
+
+            style.borders.right = new EdgeSettings();
+            if (cell.position.column.isLast) { // Last Column
+                style.borders.right.applyParams(outline.showRight(props.outline), propsGrid.outlineWeight, propsGrid.outlineColor, EdgeType.Outline);
+
+                // If we dont have left border, but values or column headers have, we need to apply padding
+                if (!outline.showRight(props.outline) && (outline.showRight(propsValues.outline) || outline.showRight(propsColumns.outline)))
+                    style.paddings.right += propsGrid.outlineWeight;
+            }
+            else {
+                style.borders.right.applyParams(propsGrid.gridVertical, propsGrid.gridVerticalWeight, propsGrid.gridVerticalColor, EdgeType.Gridline);
+            }
+
+            style.fontColor = props.fontColor;
+            style.backColor = props.backColor;
+
+            style.paddings.top = style.paddings.bottom = propsGrid.rowPadding;
+        }
+
+        public unbindBodyCell(item: TablixUtils.TablixVisualCell, cell: controls.ITablixCell): void {
+            TablixUtils.clearCellStyle(cell);
+            TablixUtils.clearCellTextAndTooltip(cell);
+        }
+
         /**
          * Corner Cell.
          */
@@ -453,7 +646,7 @@ module powerbi.visuals {
         public unbindEmptySpaceFooterCell(cell: controls.ITablixCell): void {
             // Not needed for Table
         }
-        
+
         /**
          * Measurement Helper.
          */
@@ -469,40 +662,13 @@ module powerbi.visuals {
             return false;
         }
 
-        private ensureHeight(item: any, cell: controls.ITablixCell) {
-            if (!item.values)
-                return;
-
-            let count = item.values.length;
-            if (count === 0)
-                return;
-
-            let allValuesEmpty = true;
-            for (let i: number = 0; i < count; i++) {
-                if (item.values[i]) {
-                    allValuesEmpty = false;
-                    break;
-                }
-            }
-
-            // In order to maintain the height of the row when the values are null or empty
-            // we set the innerHTML to be a nonBreakingSpace. The nonBreakingSpace does not
-            // show up in the visual because for actual cell content we use the textContent property instead.
-            if (allValuesEmpty)
-                cell.extension.contentHost.innerHTML = TableBinder.nonBreakingSpace;
-        }
-
         private sortIconsEnabled(): boolean {
             return this.options.layoutKind === controls.TablixLayoutKind.Canvas;
         }
     }
 
-    export interface ColumnWidthCallbackType {
-        (index: number, width: number): void;
-    }
-
     export interface TableConstructorOptions {
-        isFormattingPropertiesEnabled?: boolean;
+        isConditionalFormattingEnabled?: boolean;
         isTouchEnabled?: boolean;
     }
 
@@ -525,11 +691,16 @@ module powerbi.visuals {
         private waitingForSort: boolean;
         private columnWidthManager: controls.TablixColumnWidthManager;
         private dataView: DataView;
-        private isFormattingPropertiesEnabled: boolean;
+        private isConditionalFormattingEnabled: boolean;
+
+        /**
+        * Flag indicating that we are persisting objects, so that next onDataChanged can be safely ignored.
+        */
+        public persistingObjects: boolean;
 
         constructor(options?: TableConstructorOptions) {
             if (options) {
-                this.isFormattingPropertiesEnabled = options.isFormattingPropertiesEnabled;
+                this.isConditionalFormattingEnabled = options.isConditionalFormattingEnabled;
                 this.isTouchEnabled = options.isTouchEnabled;
             }
         }
@@ -541,7 +712,7 @@ module powerbi.visuals {
 
             let dataViewTableRows: data.CompiledDataViewRoleForMapping = <data.CompiledDataViewRoleForMapping>dataViewMapping.table.rows;
             let objects = dataViewMapping.metadata.objects;
-            dataViewTableRows.for.in.subtotalType = TablixUtils.shouldShowTableTotals(objects) ? data.CompiledSubtotalType.Before : data.CompiledSubtotalType.None;
+            dataViewTableRows.for.in.subtotalType = TablixObjects.shouldShowTableTotals(objects) ? data.CompiledSubtotalType.Before : data.CompiledSubtotalType.None;
         }
 
         public static getSortableRoles(): string[] {
@@ -552,20 +723,21 @@ module powerbi.visuals {
             this.element = options.element;
             this.style = options.style;
             this.updateViewport(options.viewport);
-            this.formatter = valueFormatter.formatValueColumn;
+            this.formatter = valueFormatter.formatVariantMeasureValue;
             this.isInteractive = options.interactivity && options.interactivity.selection != null;
             this.getLocalizedString = options.host.getLocalizedString;
             this.hostServices = options.host;
+            this.persistingObjects = false;
 
             this.waitingForData = false;
             this.lastAllowHeaderResize = true;
             this.waitingForSort = false;
         }
-        
+
         /**
          * Note: Public for testability.
          */
-        public static converter(dataView: DataView, isFormattingPropertiesEnabled: boolean): DataViewVisualTable {
+        public static converter(dataView: DataView): DataViewVisualTable {
             let table = dataView.table;
             debug.assertValue(table, 'table');
             debug.assertValue(table.rows, 'table.rows');
@@ -580,10 +752,7 @@ module powerbi.visuals {
                 };
                 visualTable.visualRows.push(visualRow);
             }
-
-            if (isFormattingPropertiesEnabled) {
-                visualTable.formattingProperties = TablixUtils.getTableFormattingProperties(dataView);
-            }
+            visualTable.formattingProperties = TablixObjects.getTableObjects(dataView);
 
             return visualTable;
         }
@@ -606,18 +775,21 @@ module powerbi.visuals {
                 let previousDataView = this.dataView;
                 this.dataView = dataViews[0];
 
-                // To avoid OnDataChanged being called every time resize occurs or the auto-size property switch is flipped.
-                if (this.columnWidthManager && this.columnWidthManager.suppressOnDataChangedNotification) {
-                    // Reset flag for cases when cross-filter/cross-higlight happens right after. We do need onDataChanged call to go through
-                    this.columnWidthManager.suppressOnDataChangedNotification = false;
+                /* To avoid OnDataChanged being called every time we persist Objects. If:
+                * AutoSizeColumns options was flipped
+                * A Column was resized manually
+                * A Column was auto-sized
+                */
+                if (this.persistingObjects) {
+                    this.persistingObjects = false;
                     return;
                 }
 
-                let visualTable = Table.converter(this.dataView, this.isFormattingPropertiesEnabled);
-                let textSize = visualTable.formattingProperties ? visualTable.formattingProperties.general.textSize : TablixUtils.getTextSize(this.dataView.metadata.objects);
+                let visualTable = Table.converter(this.dataView);
+                let textSize = visualTable.formattingProperties.general.textSize;
 
                 if (options.operationKind === VisualDataChangeOperationKind.Append) {
-                    this.hierarchyNavigator.update(visualTable);
+                    this.createOrUpdateHierarchyNavigator(visualTable);
                     this.tablixControl.updateModels(/*resetScrollOffsets*/false, visualTable.visualRows, visualTable.columns);
                     this.refreshControl(/*clear*/false);
                 } else {
@@ -626,7 +798,6 @@ module powerbi.visuals {
                     this.createTablixControl(textSize);
                     let binder = <TableBinder>this.tablixControl.getBinder();
                     binder.onDataViewChanged(visualTable);
-                    this.populateColumnWidths();
                     this.updateInternal(textSize, previousDataView, visualTable);
                 }
             }
@@ -635,20 +806,19 @@ module powerbi.visuals {
             this.waitingForSort = false;
         }
 
-        private populateColumnWidths(): void {
-            if (this.columnWidthManager) {
-                this.columnWidthManager.deserializeTablixColumnWidths();
-                if (this.columnWidthManager.persistColumnWidthsOnHost())
-                    this.persistColumnWidths(this.columnWidthManager.getVisualObjectInstancesToPersist());
+        private createColumnWidthManager(): void {
+            if (!this.columnWidthManager) {
+                this.columnWidthManager = new controls.TablixColumnWidthManager(this.dataView,
+                    false /* isMatrix */,
+                    (objectInstances: VisualObjectInstancesToPersist) => this.persistColumnWidths(objectInstances));
+            }
+            else {
+                this.columnWidthManager.updateDataView(this.dataView);
             }
         }
 
-        public columnWidthChanged(index: number, width: number): void {
-            this.columnWidthManager.columnWidthChanged(index, width);
-            this.persistColumnWidths(this.columnWidthManager.getVisualObjectInstancesToPersist());
-        }
-
         private persistColumnWidths(objectInstances: VisualObjectInstancesToPersist): void {
+            this.persistingObjects = true;
             this.hostServices.persistProperties(objectInstances);
         }
 
@@ -673,12 +843,14 @@ module powerbi.visuals {
         }
 
         private createOrUpdateHierarchyNavigator(visualTable: DataViewVisualTable): void {
+            let isDataComplete = !this.dataView.metadata.segment;
+
             if (!this.tablixControl) {
-                let dataNavigator = new TableHierarchyNavigator(visualTable, this.formatter);
+                let dataNavigator = new TableHierarchyNavigator(visualTable, isDataComplete, this.formatter);
                 this.hierarchyNavigator = dataNavigator;
             }
             else {
-                this.hierarchyNavigator.update(visualTable);
+                this.hierarchyNavigator.update(visualTable, isDataComplete);
             }
         }
 
@@ -689,23 +861,13 @@ module powerbi.visuals {
             }
         }
 
-        private createColumnWidthManager(): void {
-            if (!this.columnWidthManager) {
-                this.columnWidthManager = new controls.TablixColumnWidthManager(this.dataView, false /* isMatrix */);
-                this.columnWidthManager.columnWidthResizeCallback = (i, w) => this.columnWidthChanged(i, w);
-            }
-            else {
-                this.columnWidthManager.updateDataView(this.dataView);
-            }
-        }
-
         private createControl(dataNavigator: TableHierarchyNavigator, textSize: number): controls.TablixControl {
             let layoutKind = this.getLayoutKind();
 
             let tableBinderOptions: TableBinderOptions = {
                 onBindRowHeader: (item: any) => this.onBindRowHeader(item),
                 onColumnHeaderClick: (queryName: string, sortDirection: SortDirection) => this.onColumnHeaderClick(queryName, sortDirection),
-                layoutKind: layoutKind,
+                layoutKind: layoutKind
             };
 
             let tableBinder = new TableBinder(tableBinderOptions);
@@ -721,7 +883,7 @@ module powerbi.visuals {
                 interactive: this.isInteractive,
                 enableTouchSupport: this.isTouchEnabled,
                 layoutKind: layoutKind,
-                fontSize: TablixUtils.getTextSizeInPx(textSize),
+                fontSize: TablixObjects.getTextSizeInPx(textSize),
             };
 
             return new controls.TablixControl(dataNavigator, layoutManager, tableBinder, tablixContainer, tablixOptions);
@@ -732,7 +894,7 @@ module powerbi.visuals {
                 this.tablixControl.layoutManager.adjustContentSize(converterHelper.hasImageUrlColumn(this.dataView));
             }
 
-            this.tablixControl.fontSize = TablixUtils.getTextSizeInPx(textSize);
+            this.tablixControl.fontSize = TablixObjects.getTextSizeInPx(textSize);
             this.verifyHeaderResize();
 
             // Update models before the viewport to make sure column widths are computed correctly
@@ -749,9 +911,11 @@ module powerbi.visuals {
             setTimeout(() => {
                 // Render
                 this.refreshControl(shouldClearControl);
-                this.columnWidthManager.persistAllColumnWidths(this.tablixControl.layoutManager.columnWidthsToPersist);
-                if (this.columnWidthManager.persistColumnWidthsOnHost())
-                    this.persistColumnWidths(this.columnWidthManager.getVisualObjectInstancesToPersist());
+
+                //Persist actual widths if autoSize flipped to true
+                if (this.columnWidthManager.shouldPersistAllColumnWidths()) {
+                    this.columnWidthManager.persistAllColumnWidths(this.tablixControl.layoutManager.columnWidthsToPersist);
+                }
             }, 0);
         }
 
@@ -763,7 +927,7 @@ module powerbi.visuals {
         }
 
         private createTotalsRow(dataView: DataView): TableTotal {
-            if (!TablixUtils.shouldShowTableTotals(dataView.metadata.objects))
+            if (!TablixObjects.shouldShowTableTotals(dataView.metadata.objects))
                 return null;
 
             let totals = dataView.table.totals;
@@ -799,18 +963,11 @@ module powerbi.visuals {
             }
         }
 
-        private onColumnHeaderClick(queryName: string, sortDirection: SortDirection) {
-            let sortDescriptors: SortableFieldDescriptor[] = [{
-                queryName: queryName,
-                sortDirection: sortDirection
-            }];
-            let args: CustomSortEventArgs = {
-                sortDescriptors: sortDescriptors
-            };
+        private onColumnHeaderClick(queryName: string, sortDirection: SortDirection): void {
             this.waitingForSort = true;
-            this.hostServices.onCustomSort(args);
+            this.hostServices.onCustomSort(TablixUtils.getCustomSortEventArgs(queryName, sortDirection));
         }
-        
+
         /**
          * Note: Public for testability.
          */
@@ -827,11 +984,25 @@ module powerbi.visuals {
         public enumerateObjectInstances(options: EnumerateVisualObjectInstancesOptions): VisualObjectInstanceEnumeration {
             let enumeration = new ObjectEnumerationBuilder();
 
+            // Visuals are initialized with an empty data view before queries are run, therefore we need to make sure that
+            // we are resilient here when we do not have data view.
             if (this.dataView) {
-                TablixUtils.setEnumeration(options, enumeration, this.dataView, this.isFormattingPropertiesEnabled, controls.TablixType.Table);
+                TablixObjects.enumerateObjectInstances(options, enumeration, this.dataView, controls.TablixType.Table);
             }
 
             return enumeration.complete();
+        }
+
+        public enumerateObjectRepetition(): VisualObjectRepetition[] {
+            let enumeration: VisualObjectRepetition[] = [];
+
+            // Visuals are initialized with an empty data view before queries are run, therefore we need to make sure that
+            // we are resilient here when we do not have data view.
+            if (this.isConditionalFormattingEnabled && this.dataView) {
+                TablixObjects.enumerateObjectRepetition(enumeration, this.dataView, controls.TablixType.Table);
+            }
+
+            return enumeration;
         }
 
         private shouldAllowHeaderResize(): boolean {

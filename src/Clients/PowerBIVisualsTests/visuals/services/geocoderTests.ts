@@ -24,13 +24,14 @@
  *  THE SOFTWARE.
  */
 
-
+/// <reference path="../../_references.ts"/>
 
 module powerbitests {
     import MapUtil = powerbi.visuals.MapUtil;
     import services = powerbi.visuals.services;
     import GeocodeQuery = services.GeocodeQuery;
     import GeocodeBoundaryQuery = services.GeocodeBoundaryQuery;
+    import GeocodePointQuery = services.GeocodePointQuery;
     import BingEntities = services.BingEntities;
 
     describe("GeocodingManagerTests", () => {
@@ -90,16 +91,6 @@ module powerbitests {
             let nullQuery = new GeocodeQuery(null, null);
             expect(nullQuery.query).toBe("");
             expect(nullQuery.category).toBe("");
-        });
-        
-        it("cache hits", () => {
-            let query = new GeocodeQuery("Redmond", "City");
-            expect(query.getCacheHits()).toBe(0);
-            query.incrementCacheHit();
-            expect(query.getCacheHits()).toBe(1);
-            query.incrementCacheHit();
-            query.incrementCacheHit();
-            expect(query.getCacheHits()).toBe(3);
         });
 
         it("getBingEntity", () => {
@@ -174,6 +165,150 @@ module powerbitests {
         it("getUrl", () => {
             let query = new GeocodeBoundaryQuery(47, 122, "StateOrProvince", 1);
             expect(query.getUrl()).toBe("https://platform.bing.com/geo/spatial/v1/public/Geodata?key=testBingKey&$format=json&SpatialFilter=GetBoundary(47, 122, 1, \'AdminDivision1\', 1, 0, \'en-US\', \'US\')");
+        });
+    });
+
+    describe("Geocoding Tests", () => {
+        let savedBingAjaxService: services.BingAjaxService;
+        let geocoder: powerbi.IGeocoder;
+        let cache: _.Dictionary<powerbi.IGeocodeCoordinate>;
+
+        beforeEach(() => {
+            cache = {};
+
+            services.resetStaticGeocoderState({
+                getCoordinates: (key: string): powerbi.IGeocodeCoordinate => {
+                    return cache[key];
+                },
+
+                registerCoordinates: (key: string, coordinate: powerbi.IGeocodeCoordinate): void => {
+                    cache[key] = coordinate;
+                },
+            });
+
+            savedBingAjaxService = services.BingAjaxCall;
+
+            geocoder = services.createGeocoder();
+        });
+
+        afterEach(() => {
+            services.resetStaticGeocoderState(null);
+
+            services.BingAjaxCall = savedBingAjaxService;
+        });
+
+        it("Fake fetch from Bing", (done) => {
+            let expectedLocation: powerbi.IGeocodeCoordinate = {
+                latitude: -50,
+                longitude: 50,
+            };
+
+            services.BingAjaxCall = (url: string, settings: JQueryAjaxSettings) => {
+                return {
+                    then: (successFn, errorFn) => {
+                        successFn({
+                            resourceSets: [{
+                                resources: [{
+                                    point: {
+                                        type: "Point",
+                                        coordinates: [expectedLocation.latitude, expectedLocation.longitude]
+                                    },
+                                    entityType: "PopulatedPlace",
+                                }],
+                            }]
+                        });
+                    },
+                };
+            };
+
+            let resultLocation: powerbi.IGeocodeCoordinate;
+            geocoder.geocode("Redmond, WA", "City").then((location) => {
+                resultLocation = location;
+            });
+
+            setTimeout(() => {
+                expect(resultLocation).toEqual(expectedLocation);
+                done();
+            }, DefaultWaitForRender);
+        });
+
+        it("Can cancel requests", (done) => {
+            let expectedLocation: powerbi.IGeocodeCoordinate = {
+                latitude: -50,
+                longitude: 50,
+            };
+
+            services.BingAjaxCall = (url: string, settings: JQueryAjaxSettings) => {
+                return {
+                    then: (successFn, errorFn) => {
+                        successFn({
+                            resourceSets: [{
+                                resources: [{
+                                    point: {
+                                        type: "Point",
+                                        coordinates: [expectedLocation.latitude, expectedLocation.longitude]
+                                    },
+                                    entityType: "PopulatedPlace",
+                                }],
+                            }]
+                        });
+                    },
+                };
+            };
+
+            // a fake "resolved" timeout
+            let timeout: powerbi.IPromise<any> = {
+                then: (successFn: (_: any) => any, errorFn: (_: any) => any) => {
+                    successFn(null);
+                    return <powerbi.IPromise<any>>null;
+                },
+
+                catch: null,
+                finally: (finallyFn: () => any) => {
+                    finallyFn();
+                    return <powerbi.IPromise<any>>null;
+                },
+            };
+
+            let resultLocation: powerbi.IGeocodeCoordinate;
+            let wasRejected: boolean;
+            geocoder.geocode("Redmond, WA", "City", { timeout: timeout }).then((location) => {
+                resultLocation = location;
+            }, () => {
+                wasRejected = true;
+            });
+
+            setTimeout(() => {
+                expect(resultLocation).toBeUndefined();
+                expect(wasRejected).toBe(true);
+                done();
+            }, DefaultWaitForRender);
+        });
+    });
+
+    describe("GeocodePointQueryTests", () => {
+        beforeEach(() => {
+            MapUtil.Settings.BingKey = "testBingKey";
+        });
+
+        it("getUrl with all entity types", () => {
+            let query = new GeocodePointQuery(47.12435, 122.67891,["Address","Neighborhood","PopulatedPlace","Postcode1","AdminDivision1","AdminDivision2","CountryRegion"]);
+            expect(query.getUrl()).toBe("https://dev.virtualearth.net/REST/v1/Locations/47.12435,122.67891?key=testBingKey&includeEntityTypes=Address,Neighborhood,PopulatedPlace,Postcode1,AdminDivision1,AdminDivision2,CountryRegion&include=ciso2");
+        });
+        
+        it("getUrl with some entity types", () => {
+            let query = new GeocodePointQuery(47.12435, 122.67891,["Address","Neighborhood","PopulatedPlace","Postcode1","AdminDivision1"]);
+            expect(query.getUrl()).toBe("https://dev.virtualearth.net/REST/v1/Locations/47.12435,122.67891?key=testBingKey&includeEntityTypes=Address,Neighborhood,PopulatedPlace,Postcode1,AdminDivision1&include=ciso2");
+        });
+        
+        it("getUrl with one entity type", () => {
+            let query = new GeocodePointQuery(47.12435, 122.67891,["Address"]);
+            expect(query.getUrl()).toBe("https://dev.virtualearth.net/REST/v1/Locations/47.12435,122.67891?key=testBingKey&includeEntityTypes=Address&include=ciso2");
+        });
+        
+        it("getUrl with no entity types", () => {
+            let query = new GeocodePointQuery(47.12435, 122.67891,[]);
+            expect(query.getUrl()).toBe("https://dev.virtualearth.net/REST/v1/Locations/47.12435,122.67891?key=testBingKey&include=ciso2");
         });
     });
 } 

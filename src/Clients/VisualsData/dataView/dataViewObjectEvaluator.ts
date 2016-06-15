@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Power BI Visualizations
  *
  *  Copyright (c) Microsoft Corporation
@@ -23,7 +23,7 @@
  *  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  *  THE SOFTWARE.
  */
- 
+
 /// <reference path="../_references.ts"/>
 
 module powerbi.data {
@@ -240,10 +240,10 @@ module powerbi.data {
 
         function evaluateValue(evalContext: IEvalContext, definition: SQExpr | RuleEvaluation, valueType: ValueType): any {
             if (definition instanceof SQExpr)
-                return ExpressionEvaluator.evaluate(<SQExpr>definition, evalContext);
+                return ExpressionEvaluator.evaluate(definition, evalContext);
 
             if (definition instanceof RuleEvaluation)
-                return (<RuleEvaluation>definition).evaluate(evalContext);
+                return definition.evaluate(evalContext);
         }
 
         /** Responsible for evaluating SQExprs into values. */
@@ -257,6 +257,10 @@ module powerbi.data {
                 return expr.accept(ExpressionEvaluator.instance, evalContext);
             }
 
+            public visitColumnRef(expr: SQColumnRefExpr, evalContext: IEvalContext): PrimitiveValue {
+                return evalContext.getExprValue(expr);
+            }
+
             public visitConstant(expr: SQConstantExpr, evalContext: IEvalContext): PrimitiveValue {
                 return expr.value;
             }
@@ -266,6 +270,20 @@ module powerbi.data {
             }
 
             public visitAggr(expr: SQAggregationExpr, evalContext: IEvalContext): PrimitiveValue {
+                return evalContext.getExprValue(expr);
+            }
+
+            public visitFillRule(expr: SQFillRuleExpr, evalContext: IEvalContext): PrimitiveValue {
+                let inputValue = expr.input.accept(this, evalContext);
+                if (inputValue !== undefined) {
+                    let colorAllocator = evalContext.getColorAllocator(expr);
+                    if (colorAllocator) {
+                        return colorAllocator.color(inputValue);
+                    }
+                }
+            }
+
+            public visitSelectRef(expr: SQSelectRefExpr, evalContext: IEvalContext): PrimitiveValue {
                 return evalContext.getExprValue(expr);
             }
         }

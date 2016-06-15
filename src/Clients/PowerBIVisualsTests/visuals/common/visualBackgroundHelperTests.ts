@@ -24,7 +24,7 @@
  *  THE SOFTWARE.
  */
 
-
+/// <reference path="../../_references.ts"/>
 
 module powerbitests {
     import visuals = powerbi.visuals;
@@ -37,12 +37,7 @@ module powerbitests {
 
     describe("VisualBackgroundHelper", () => {
         describe("enumeratePlot", () => {
-            it('featureSwitch on', () => {
-                let enumeration = new ObjectEnumerationBuilder();
-                visualBackgroundHelper.enumeratePlot(enumeration, {}, false);
-                expect(enumeration.complete()).toBeUndefined();
-            });
-
+            
             it('default background', () => {
                 let enumeration = new ObjectEnumerationBuilder();
 
@@ -54,7 +49,7 @@ module powerbitests {
                     },
                     objectName: 'plotArea',
                 };
-                visualBackgroundHelper.enumeratePlot(enumeration, /* background */ undefined, true);
+                visualBackgroundHelper.enumeratePlot(enumeration, /* background */ undefined);
                 expect(enumeration.complete()).toEqual({
                     instances: [instance],
                 });
@@ -72,7 +67,7 @@ module powerbitests {
                     },
                     objectName: 'plotArea',
                 };
-                visualBackgroundHelper.enumeratePlot(enumeration, background, true);
+                visualBackgroundHelper.enumeratePlot(enumeration, background);
                 expect(enumeration.complete()).toEqual({
                     instances: [instance],
                 });
@@ -98,7 +93,7 @@ module powerbitests {
                     },
                     objectName: 'plotArea',
                 };
-                visualBackgroundHelper.enumeratePlot(enumeration, background, true);
+                visualBackgroundHelper.enumeratePlot(enumeration, background);
                 expect(enumeration.complete()).toEqual({
                     instances: [instance],
                 });
@@ -118,7 +113,7 @@ module powerbitests {
                     },
                     objectName: 'plotArea',
                 };
-                visualBackgroundHelper.enumeratePlot(enumeration, background, true);
+                visualBackgroundHelper.enumeratePlot(enumeration, background);
                 expect(enumeration.complete()).toEqual({
                     instances: [instance],
                 });
@@ -138,7 +133,7 @@ module powerbitests {
                     },
                     objectName: 'plotArea',
                 };
-                visualBackgroundHelper.enumeratePlot(enumeration, background, true);
+                visualBackgroundHelper.enumeratePlot(enumeration, background);
                 expect(enumeration.complete()).toEqual({
                     instances: [instance],
                 });
@@ -168,7 +163,7 @@ module powerbitests {
                     },
                     objectName: 'plotArea',
                 };
-                visualBackgroundHelper.enumeratePlot(enumeration, background, true);
+                visualBackgroundHelper.enumeratePlot(enumeration, background);
                 expect(enumeration.complete()).toEqual({
                     instances: [instance],
                 });
@@ -195,7 +190,7 @@ module powerbitests {
                 };
 
                 enumeration.pushInstance(instance);
-                visualBackgroundHelper.enumeratePlot(enumeration, background, true);
+                visualBackgroundHelper.enumeratePlot(enumeration, background);
                 expect(enumeration.complete().instances.length).toBe(2);
             });
         });

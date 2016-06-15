@@ -27,7 +27,10 @@
 /// <reference path="../_references.ts"/>
 
 module powerbi.data {
+    import inherit = Prototype.inherit;
     import inheritSingle = Prototype.inheritSingle;
+    import RoleKindByQueryRef = DataViewAnalysis.RoleKindByQueryRef;
+    import valueFormatter = powerbi.visuals.valueFormatter;
 
     export module DataViewConcatenateCategoricalColumns {
 
@@ -43,7 +46,13 @@ module powerbi.data {
             categories: DataViewCategoryColumn[];
         }
 
-        export function detectAndApply(dataView: DataView, roleMappings: DataViewMapping[], projectionOrdering: DataViewProjectionOrdering): DataView {
+        export function detectAndApply(
+            dataView: DataView,
+            objectDescriptors: DataViewObjectDescriptors,
+            roleMappings: DataViewMapping[],
+            projectionOrdering: DataViewProjectionOrdering,
+            selects: DataViewSelectTransform[],
+            projectionActiveItems: DataViewProjectionActiveItems): DataView {
             debug.assertValue(dataView, 'dataView');
             debug.assertAnyValue(roleMappings, 'roleMappings');
             debug.assertAnyValue(projectionOrdering, 'projectionOrdering');
@@ -52,14 +61,50 @@ module powerbi.data {
             let dataViewCategorical: DataViewCategorical = dataView.categorical;
 
             if (dataViewCategorical) {
-                let concatenationSource: CategoryColumnsByRole = detectCategoricalRoleForHierarchicalGroup(dataViewCategorical, roleMappings);
+                let concatenationSource: CategoryColumnsByRole = detectCategoricalRoleForHierarchicalGroup(dataViewCategorical, dataView.metadata, roleMappings, selects, projectionActiveItems);
 
                 if (concatenationSource) {
+                    // Consider: Perhaps the re-ordering of categorical columns should happen in the function transformSelects(...) of dataViewTransform?
                     let columnsSortedByProjectionOrdering = sortColumnsByProjectionOrdering(projectionOrdering, concatenationSource.roleName, concatenationSource.categories);
                     if (columnsSortedByProjectionOrdering.length >= 2) {
-                        result = applyConcatenation(dataView, concatenationSource.roleName, columnsSortedByProjectionOrdering);
+                        let activeItemsToIgnoreInConcatenation =
+                            _.chain(projectionActiveItems[concatenationSource.roleName])
+                                .filter((activeItemInfo: DataViewProjectionActiveItemInfo) => activeItemInfo.suppressConcat)
+                                .map((activeItemInfo: DataViewProjectionActiveItemInfo) => activeItemInfo.queryRef)
+                                .value();
+
+                        result = applyConcatenation(dataView, objectDescriptors, concatenationSource.roleName, columnsSortedByProjectionOrdering, activeItemsToIgnoreInConcatenation);
                     }
                 }
+            }
+
+            return result;
+        }
+
+        /** For applying concatenation to the DataViewCategorical that is the data for one of the frames in a play chart. */
+        export function applyToPlayChartCategorical(
+            metadata: DataViewMetadata,
+            objectDescriptors: DataViewObjectDescriptors,
+            categoryRoleName: string,
+            categorical: DataViewCategorical): DataView {
+            debug.assertValue(metadata, 'metadata');
+            debug.assertAnyValue(objectDescriptors, 'objectDescriptors');
+            debug.assertValue(categorical, 'categorical');
+
+            let result: DataView;
+            if (!_.isEmpty(categorical.categories) && categorical.categories.length >= 2) {
+                // In PlayChart, the code converts the Visual DataView with a matrix into multiple Visual DataViews, each with a categorical.
+                // metadata and metadata.columns could already be inherited objects as they come from the Visual DataView with a matrix.
+                // To guarantee that this method does not have any side effect on prototypeMetadata (which might already be an inherited obj),
+                // use inherit() rather than inheritSingle() here.
+                let transformingColumns = inherit(metadata.columns);
+                let transformingMetadata = inherit(metadata, m => { m.columns = transformingColumns; });
+
+                let transformingDataView = { metadata: transformingMetadata, categorical: categorical };
+                result = applyConcatenation(transformingDataView, objectDescriptors, categoryRoleName, categorical.categories, []);
+            }
+            else {
+                result = { metadata: metadata, categorical: categorical };
             }
 
             return result;
@@ -72,53 +117,97 @@ module powerbi.data {
          * Note: In the future if we support sibling hierarchical groups in categorical,
          * change the return type to CategoryColumnsByRole[] and update detection logic.
          */
-        function detectCategoricalRoleForHierarchicalGroup(dataViewCategorical: DataViewCategorical, roleMappings: DataViewMapping[]): CategoryColumnsByRole {
+        function detectCategoricalRoleForHierarchicalGroup(dataViewCategorical: DataViewCategorical, metadata: DataViewMetadata, dataViewMappings: DataViewMapping[], selects: DataViewSelectTransform[], projectionActiveItems: DataViewProjectionActiveItems): CategoryColumnsByRole {
             debug.assertValue(dataViewCategorical, 'dataViewCategorical');
-            debug.assertAnyValue(roleMappings, 'roleMappings');
+            debug.assertAnyValue(dataViewMappings, 'dataViewMappings');
 
             let result: CategoryColumnsByRole;
 
-            // For now, just handle the case where roleMappings.length === 1.
-            // In the future, if there is more than 1, we might want to proceed if, 
-            // for example, all role mappings map category to the same role name and they all have { max: 1 } conditions.
-            let roleMappingForCategorical: DataViewMapping = (roleMappings && roleMappings.length === 1 && !!roleMappings[0].categorical) ? roleMappings[0] : undefined;
-            if (roleMappingForCategorical) {
-                let roleNamesForCategory: string[] = getAllRolesInCategories(roleMappingForCategorical.categorical);
+            let roleKinds: RoleKindByQueryRef = DataViewSelectTransform.createRoleKindFromMetadata(selects, metadata);
+            let projections = DataViewSelectTransform.projectionsFromSelects(selects, projectionActiveItems);
+            let supportedRoleMappings = DataViewAnalysis.chooseDataViewMappings(projections, dataViewMappings, roleKinds).supportedMappings;
 
-                // With "list" in role mapping, is it possible to have multiple role names for category.
-                // For now, proceed to concatenate category columns only when categories are bound to 1 Role.
-                // We can change this if we want to support independent (sibling) group hierarchies in categorical.
-                if (roleNamesForCategory && roleNamesForCategory.length === 1) {
-                    let targetRoleName = roleNamesForCategory[0];
+            // The following code will choose a role name only if all supportedRoleMappings share the same role for Categorical Category.
+            // Handling multiple supportedRoleMappings is necessary for TransformActions with splits, which can happen in scenarios such as:
+            // 1. combo chart with a field for both Line and Column values, and
+            // 2. chart with regression line enabled.
+            // In case 1, you can pretty much get exactly the one from supportedRoleMappings for which this code is currently processing for,
+            // by looking at the index of the current split in DataViewTransformActions.splits.
+            // In case 2, however, supportedRoleMappings.length will be different than DataViewTransformActions.splits.length, hence it is
+            // not straight forward to figure out for which one in supportedRoleMappings is this code currently processing.
+            // SO... This code will just choose the category role name if it is consistent across all supportedRoleMappings.
 
-                    let isVisualExpectingMaxOneCategoryColumn: boolean =
-                        !_.isEmpty(roleMappingForCategorical.conditions) &&
-                        _.every(roleMappingForCategorical.conditions, condition => condition[targetRoleName] && condition[targetRoleName].max === 1);
+            let isEveryRoleMappingForCategorical = !_.isEmpty(supportedRoleMappings) &&
+                _.every(supportedRoleMappings, (roleMapping) => !!roleMapping.categorical);
 
-                    if (isVisualExpectingMaxOneCategoryColumn) {
-                        let categoriesForTargetRole: DataViewCategoryColumn[] = _.filter(
-                            dataViewCategorical.categories,
-                            (categoryColumn: DataViewCategoryColumn) => categoryColumn.source.roles && !!categoryColumn.source.roles[targetRoleName] );
+            if (isEveryRoleMappingForCategorical) {
+                let targetRoleName = getSingleCategoryRoleNameInEveryRoleMapping(supportedRoleMappings);
+                if (targetRoleName &&
+                    isVisualExpectingMaxOneCategoryColumn(targetRoleName, supportedRoleMappings)) {
 
+                    let categoryColumnsForTargetRole: DataViewCategoryColumn[] = _.filter(
+                        dataViewCategorical.categories,
+                        (categoryColumn: DataViewCategoryColumn) => categoryColumn.source.roles && !!categoryColumn.source.roles[targetRoleName]);
+
+                    // There is no need to concatenate columns unless there is actually more than one column
+                    if (categoryColumnsForTargetRole.length >= 2) {
                         // At least for now, we expect all category columns for the same role to have the same number of value entries.
                         // If that's not the case, we won't run the concatenate logic for that role at all...
                         let areValuesCountsEqual: boolean = _.every(
-                            categoriesForTargetRole,
-                            (categoryColumn: DataViewCategoryColumn) => categoryColumn.values.length === categoriesForTargetRole[0].values.length);
-
-                        // Also, there is no need to concatenate columns unless there is actually more than one column
-                        if (areValuesCountsEqual &&
-                            categoriesForTargetRole.length >= 2) {
+                            categoryColumnsForTargetRole,
+                            (categoryColumn: DataViewCategoryColumn) => categoryColumn.values.length === categoryColumnsForTargetRole[0].values.length);
+                        
+                        if (areValuesCountsEqual) {
                             result = {
                                 roleName: targetRoleName,
-                                categories: categoriesForTargetRole
+                                categories: categoryColumnsForTargetRole,
                             };
                         }
                     }
                 }
             }
+            return result;
+        }
+
+        /** If all mappings in the specified roleMappings have the same single role name for their categorical category roles, return that role name, else returns undefined. */
+        function getSingleCategoryRoleNameInEveryRoleMapping(categoricalRoleMappings: DataViewMapping[]): string {
+            debug.assertNonEmpty(categoricalRoleMappings, 'categoricalRoleMappings');
+            debug.assert(_.every(categoricalRoleMappings, (roleMapping) => !!roleMapping.categorical), 'All mappings in categoricalRoleMappings must contain a DataViewCategoricalMapping');
+
+            let result: string;
+
+            // With "list" in role mapping, it is possible to have multiple role names for category.
+            // For now, proceed to concatenate category columns only when categories are bound to 1 Role.
+            // We can change this if we want to support independent (sibling) group hierarchies in categorical.
+            let uniqueCategoryRoles: string[] = _.chain(categoricalRoleMappings)
+                .map((roleMapping) => {
+                    let categoryRoles = getAllRolesInCategories(roleMapping.categorical);
+                    return categoryRoles.length === 1 ? categoryRoles[0] : undefined;
+                })
+                .uniq() // Note: _.uniq() does not treat two arrays with same elements as equal
+                .value();
+            
+
+            let isSameCategoryRoleNameInAllRoleMappings = uniqueCategoryRoles.length === 1 && !_.isUndefined(uniqueCategoryRoles[0]);
+            if (isSameCategoryRoleNameInAllRoleMappings) {
+                result = uniqueCategoryRoles[0];
+            }
 
             return result;
+        }
+
+        function isVisualExpectingMaxOneCategoryColumn(categoricalRoleName: string, roleMappings: DataViewMapping[]): boolean {
+            debug.assertValue(categoricalRoleName, 'categoricalRoleName');
+            debug.assertNonEmpty(roleMappings, 'roleMappings');
+
+            let isVisualExpectingMaxOneCategoryColumn = _.every(
+                roleMappings,
+                (roleMapping) => {
+                    return !_.isEmpty(roleMapping.conditions) &&
+                        _.every(roleMapping.conditions, condition => condition[categoricalRoleName] && condition[categoricalRoleName].max === 1);
+                });
+
+            return isVisualExpectingMaxOneCategoryColumn;
         }
 
         /**
@@ -129,40 +218,28 @@ module powerbi.data {
             debug.assertValue(categoricalRoleMapping, 'categoricalRoleMapping');
 
             let roleNames: string[] = [];
-            if (categoricalRoleMapping.categories) {
-                // TODO VSTS 6842137: Handle roleMapping.categorical.categories with a visitor class (see DataViewRoleForMapping, DataViewRoleBindMapping, and DataViewListRoleMapping).
-                // For reference implementation, see visitCategoricalCategories(...) in src\Clients\Data\dataView\compiledDataViewMappingVisitor.ts
-
-                let mappings: (DataViewRoleForMapping | DataViewRoleBindMapping)[] = (<DataViewListRoleMapping>categoricalRoleMapping.categories).select;
-                if (!mappings) {
-                    mappings = [<DataViewRoleMappingWithReduction>categoricalRoleMapping.categories];
-                }
-
-                for (let mapping of mappings) {
-                    let forValue = (<DataViewRoleForMapping>mapping).for;
-                    if (forValue) {
-                        roleNames.push(forValue.in);
+            DataViewMapping.visitCategoricalCategories(
+                categoricalRoleMapping.categories,
+                {
+                    visitRole: (roleName: string) => {
+                        roleNames.push(roleName);
                     }
-                    else {
-                        let bindValue = (<DataViewRoleBindMapping>mapping).bind;
-                        if (bindValue) {
-                            roleNames.push(bindValue.to);
-                        }
-                    }
-                }
-            }
+                });
 
             return roleNames;
         }
 
-        function applyConcatenation(dataView: DataView, roleName: string, columnsSortedByProjectionOrdering: DataViewCategoryColumn[]): DataView {
+        function applyConcatenation(dataView: DataView, objectDescriptors: DataViewObjectDescriptors, roleName: string, columnsSortedByProjectionOrdering: DataViewCategoryColumn[], queryRefsToIgnore: string[]): DataView {
             debug.assertValue(dataView, 'dataView');
+            debug.assertAnyValue(objectDescriptors, 'objectDescriptors');
             debug.assertValue(roleName, 'roleName');
             debug.assert(columnsSortedByProjectionOrdering && columnsSortedByProjectionOrdering.length >= 2, 'columnsSortedByProjectionOrdering && columnsSortedByProjectionOrdering.length >= 2');
 
-            let concatenatedValues: string[] = concatenateValues(columnsSortedByProjectionOrdering);
+            let formatStringPropId: DataViewObjectPropertyIdentifier = DataViewObjectDescriptors.findFormatString(objectDescriptors);
+            let concatenatedValues: string[] = concatenateValues(columnsSortedByProjectionOrdering, queryRefsToIgnore, formatStringPropId);
 
-            let concatenatedColumnMetadata: DataViewMetadataColumn = createConcatenatedColumnMetadata(roleName, columnsSortedByProjectionOrdering);
+            let columnsSourceSortedByProjectionOrdering = _.map(columnsSortedByProjectionOrdering, categoryColumn => categoryColumn.source);
+            let concatenatedColumnMetadata: DataViewMetadataColumn = createConcatenatedColumnMetadata(roleName, columnsSourceSortedByProjectionOrdering, queryRefsToIgnore);
             let transformedDataView = inheritSingle(dataView);
             addToMetadata(transformedDataView, concatenatedColumnMetadata);
 
@@ -170,7 +247,7 @@ module powerbi.data {
                 columnsSortedByProjectionOrdering,
                 concatenatedColumnMetadata,
                 concatenatedValues);
-            
+
             let dataViewCategorical: DataViewCategorical = dataView.categorical;
 
             let transformedCategoricalCategories: DataViewCategoryColumn[] = _.difference(dataViewCategorical.categories, columnsSortedByProjectionOrdering);
@@ -183,19 +260,23 @@ module powerbi.data {
             return transformedDataView;
         }
 
-        function concatenateValues(columnsSortedByProjectionOrdering: DataViewCategoryColumn[]): string[] {
+        function concatenateValues(columnsSortedByProjectionOrdering: DataViewCategoryColumn[], queryRefsToIgnore: string[], formatStringPropId: DataViewObjectPropertyIdentifier): string[] {
             debug.assertValue(columnsSortedByProjectionOrdering, 'columnsSortedByProjectionOrdering');
+            debug.assertAnyValue(queryRefsToIgnore, 'queryRefsToIgnore');
+            debug.assertAnyValue(formatStringPropId, 'formatStringPropId');
 
             let concatenatedValues: string[] = [];
 
             // concatenate the values in dataViewCategorical.categories[0..length-1].values[j], and store it in combinedValues[j]
             for (let categoryColumn of columnsSortedByProjectionOrdering) {
+                let formatString = valueFormatter.getFormatString(categoryColumn.source, formatStringPropId);
+
                 for (let i = 0, len = categoryColumn.values.length; i < len; i++) {
-                    // TODO VSTS 6842107: need to clean up this value concatenation logic
-                    // This code does not have access to valueFormatter module.  So first, move valueFormatter.getFormatString(...)
-                    // and/or valueFormatter.formatValueColumn(...) to somewhere near DataViewObjects.ts, and then use it from here.
-                    let valueToAppend = categoryColumn.values && categoryColumn.values[i];
-                    concatenatedValues[i] = (concatenatedValues[i] === undefined) ? (valueToAppend + '') : (valueToAppend + ' ' + concatenatedValues[i]);
+                    if (!_.contains(queryRefsToIgnore, categoryColumn.source.queryName)) {
+                        let value = categoryColumn.values && categoryColumn.values[i];
+                        let formattedValue = valueFormatter.format(value, formatString);
+                        concatenatedValues[i] = (concatenatedValues[i] === undefined) ? formattedValue : (formattedValue + ' ' + concatenatedValues[i]);
+                    }
                 }
             }
 
@@ -240,27 +321,16 @@ module powerbi.data {
         /**
          * Creates the column metadata that will back the column with the concatenated values. 
          */
-        function createConcatenatedColumnMetadata(roleName: string, columnsSortedByProjectionOrdering: DataViewCategoryColumn[]): DataViewMetadataColumn {
+        function createConcatenatedColumnMetadata(roleName: string, sourceColumnsSortedByProjectionOrdering: DataViewMetadataColumn[], queryRefsToIgnore?: string[]): DataViewMetadataColumn {
             debug.assertValue(roleName, 'roleName');
-            debug.assertNonEmpty(columnsSortedByProjectionOrdering, 'columnsSortedByProjectionOrdering');
+            debug.assertNonEmpty(sourceColumnsSortedByProjectionOrdering, 'sourceColumnsSortedByProjectionOrdering');
+            debug.assert(_.chain(sourceColumnsSortedByProjectionOrdering).map(c => c.isMeasure).uniq().value().length === 1, 'pre-condition: caller code should not attempt to combine a mix of measure columns and non-measure columns');
 
             let concatenatedDisplayName: string;
 
-            let columnForCurrentDrillLevel = _.last(columnsSortedByProjectionOrdering);
-
-            // By the end of the for-loop, consistentIsMeasure will be:
-            // - true if _.every(categoryColumn, c => c.source.isMeasure === true), or else
-            // - false if _.every(categoryColumn, c => c.source.isMeasure === false), or else
-            // - undefined.
-            let consistentIsMeasure: boolean = columnForCurrentDrillLevel.source.isMeasure;
-
-            for (let categoryColumn of columnsSortedByProjectionOrdering) {
-                let columnSource: DataViewMetadataColumn = categoryColumn.source;
-
-                concatenatedDisplayName = (concatenatedDisplayName == null) ? columnSource.displayName : (columnSource.displayName + ' ' + concatenatedDisplayName);
-
-                if (consistentIsMeasure !== columnSource.isMeasure) {
-                    consistentIsMeasure = undefined;
+            for (let columnSource of sourceColumnsSortedByProjectionOrdering) {
+                if (!_.contains(queryRefsToIgnore, columnSource.queryName)) {
+                    concatenatedDisplayName = (concatenatedDisplayName == null) ? columnSource.displayName : (columnSource.displayName + ' ' + concatenatedDisplayName);
                 }
             }
 
@@ -273,14 +343,15 @@ module powerbi.data {
                 type: ValueType.fromPrimitiveTypeAndCategory(PrimitiveType.Text)
             };
 
-            if (consistentIsMeasure !== undefined) {
-                newColumnMetadata.isMeasure = consistentIsMeasure;
+            let columnSourceForCurrentDrillLevel = _.last(sourceColumnsSortedByProjectionOrdering);
+            if (columnSourceForCurrentDrillLevel.isMeasure !== undefined) {
+                newColumnMetadata.isMeasure = columnSourceForCurrentDrillLevel.isMeasure;
             }
 
             // TODO VSTS 6842046: Investigate whether we should change that property to mandatory or change the Chart visual code.
             // If queryName is not set at all, the column chart visual will only render column for the first group instance.
             // If queryName is set to any string other than columnForCurrentDrillLevel.source.queryName, then drilldown by group instance is broken (VSTS 6847879).
-            newColumnMetadata.queryName = columnForCurrentDrillLevel.source.queryName;
+            newColumnMetadata.queryName = columnSourceForCurrentDrillLevel.queryName;
 
             return newColumnMetadata;
         }
@@ -321,8 +392,10 @@ module powerbi.data {
                 newCategoryColumn.identityFields = firstColumn.identityFields;
             }
 
-            // I doubt that any firstColumn.objects property would still make sense in the new column,
-            // so I won't copy that over for now.
+            // It is safe to look at the first column as it is the one that is being set by findSelectedCategoricalColumn
+            if (firstColumn.objects) {
+                newCategoryColumn.objects = firstColumn.objects;
+            }
 
             return newCategoryColumn;
         }

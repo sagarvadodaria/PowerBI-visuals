@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Power BI Visualizations
  *
  *  Copyright (c) Microsoft Corporation
@@ -94,8 +94,11 @@ module powerbi.data {
                 if ((<DataViewScopeIdentity>selectorDataItem).expr) {
                     selectorDataExprs = ScopeIdentityExtractor.getKeys(<SQExpr>(<DataViewScopeIdentity>selectorDataItem).expr);
                 }
-                else {
+                else if ((<DataViewScopeWildcard>selectorDataItem).exprs) {
                     selectorDataExprs = <SQExpr[]>(<DataViewScopeWildcard>selectorDataItem).exprs;
+                } else { 
+                    // In case DataViewRoleWildcard
+                    return false;
                 }
 
                 if (!selectorDataExprs)
@@ -155,12 +158,18 @@ module powerbi.data {
         }
 
         function equalsData(x: DataRepetitionSelector, y: DataRepetitionSelector): boolean {
-            if (!(<DataViewScopeIdentity>x).expr && (<DataViewScopeIdentity>y).expr) {
-                // TODO: We need to also check wildcard selectors too (once that's supported/figured out).
-                return false;
-            }
+            let selector1 = <DataViewScopeIdentity & DataViewRoleWildcard & DataViewScopeWildcard>x;
+            let selector2 = <DataViewScopeIdentity & DataViewRoleWildcard & DataViewScopeWildcard>y;
+            if (selector1.expr && selector2.expr)
+                return DataViewScopeIdentity.equals(selector1, selector2);
 
-            return DataViewScopeIdentity.equals(<DataViewScopeIdentity>x, <DataViewScopeIdentity>y);
+            if (selector1.exprs && selector2.exprs)
+                return DataViewScopeWildcard.equals(selector1, selector2);
+
+            if (selector1.roles && selector2.roles)
+                return DataViewRoleWildcard.equals(selector1, selector2);
+
+            return false;
         }
 
         export function getKey(selector: Selector): string {
@@ -186,13 +195,32 @@ module powerbi.data {
             if (!dataItems)
                 return false;
 
-            for (let i = 0, len = dataItems.length; i < len; i++) {
-                let wildcard = <DataViewScopeWildcard>dataItems[i];
-                if (wildcard.exprs)
+            for (let dataItem of dataItems) {
+                let wildCard = <DataViewScopeWildcard & DataViewRoleWildcard>dataItem;
+                if (wildCard.exprs || wildCard.roles)
                     return true;
             }
 
             return false;
+        }
+
+        export function hasRoleWildcard(selector: Selector): boolean {
+            debug.assertValue(selector, 'selector');
+
+            let dataItems = selector.data;
+            if (_.isEmpty(dataItems))
+                return false;
+
+            for (let dataItem of dataItems) {
+                if (isRoleWildcard(dataItem))
+                    return true;
+            }
+
+            return false;
+        }
+
+        export function isRoleWildcard(dataItem: DataRepetitionSelector): dataItem is DataViewRoleWildcard {
+            return !_.isEmpty((<DataViewRoleWildcard>dataItem).roles);
         }
     }
 }

@@ -24,30 +24,41 @@
 *  THE SOFTWARE.
 */
 
-
+/// <reference path="../../_references.ts"/>
 
 module powerbitests {
+    import visuals = powerbi.visuals;
     import IVisualPluginService = powerbi.visuals.IVisualPluginService;
 
     describe('visual plugin service tests', () => {
+        let featureSwitchService: visuals.MinervaVisualFeatureSwitches;
         let pluginService: IVisualPluginService;
 
         beforeEach(() => {
-            pluginService = powerbi.visuals.visualPluginFactory.create();
+            featureSwitchService = {};
+            pluginService = visuals.visualPluginFactory.create();
+        });
+
+        afterEach(() => {
+            delete (localStorage['customVisualMetaData']);
         });
 
         it("Disables map when locale doesn't support maps", () => {
             expect(pluginService.shouldDisableVisual(powerbi.visuals.plugins.map.name, true)).toBe(true);
         });
+
         it("Disables filled map when locale doesn't support maps", () => {
             expect(pluginService.shouldDisableVisual(powerbi.visuals.plugins.filledMap.name, true)).toBe(true);
         });
+
         it("Doesn't disable map when locale supports maps", () => {
             expect(pluginService.shouldDisableVisual(powerbi.visuals.plugins.map.name, false)).toBe(false);
         });
+
         it("Doesn't disable filled map when locale supports maps", () => {
             expect(pluginService.shouldDisableVisual(powerbi.visuals.plugins.filledMap.name, false)).toBe(false);
         });
+
         it("Doesn't disable non-map visuals when locale doesn't support maps", () => {
             expect(pluginService.shouldDisableVisual(powerbi.visuals.plugins.pieChart.name, true)).toBe(false);
         });

@@ -24,6 +24,8 @@
  *  THE SOFTWARE.
  */
 
+/// <reference path="../../_references.ts"/>
+
 module powerbitests {
     import IDataViewCategoricalReader = powerbi.data.IDataViewCategoricalReader;
     import ValueType = powerbi.ValueType;
@@ -38,21 +40,25 @@ module powerbitests {
                     {
                         displayName: "col1",
                         queryName: "col1",
-                        type: ValueType.fromPrimitiveTypeAndCategory(PrimitiveType.Text)
+                        type: ValueType.fromPrimitiveTypeAndCategory(PrimitiveType.Text),
+                        roles: { Category: true },
                     },
                     {
                         displayName: "col2",
                         queryName: "col2",
                         isMeasure: true,
-                        type: ValueType.fromPrimitiveTypeAndCategory(PrimitiveType.Double)
+                        type: ValueType.fromPrimitiveTypeAndCategory(PrimitiveType.Double),
+                        roles: { Y: true },
                     }
                 ],
             };
             let categoryColumnRef = powerbi.data.SQExprBuilder.fieldDef({ schema: "s", entity: "e", column: "col1" });
 
-            xit('Null', () => {
+            it('Null', () => {
+                let spy = spyOn(debug, 'assertValue');
                 let reader = createIDataViewCategoricalReader(null);
                 executeAllMethods(reader);
+                expect(spy.calls.count()).toBe(1);
             });
 
             it('No categorical', () => {
@@ -90,7 +96,23 @@ module powerbitests {
                 executeAllMethods(reader);
             });
 
-            describe('No categories', () => {
+            it('Empty categorical.values', () => {
+                let reader = createIDataViewCategoricalReader({
+                    metadata: dataViewMetadataTwoColumn,
+                    categorical: {
+                        categories: [{
+                            source: dataViewMetadataTwoColumn.columns[0],
+                            values: ["abc", "def"],
+                            identity: [mocks.dataViewScopeIdentity("abc"), mocks.dataViewScopeIdentity("def")],
+                            identityFields: [categoryColumnRef]
+                        }],
+                        values: DataViewTransform.createValueColumns([])
+                    }
+                });
+                executeAllMethods(reader);
+            });
+
+            it('No categories', () => {
                 let reader = createIDataViewCategoricalReader({
                     metadata: dataViewMetadataTwoColumn,
                     categorical: {
@@ -180,28 +202,35 @@ module powerbitests {
         reader.hasCategories();
         reader.getCategoryCount();
         reader.getCategoryValues("");
-        reader.getCategoryValue(0, "");
+        reader.getCategoryValue("", 0);
         reader.getCategoryColumn("");
+        reader.getCategoryMetadataColumn("");
+        reader.getCategoryColumnIdentityFields("");
+        reader.getCategoryDisplayName("");
         reader.hasCompositeCategories();
         reader.hasCategoryWithRole("");
-        reader.getCategoryObjects(0, "");
+        reader.getCategoryObjects("", 0);
         
         // Value/measure methods
         reader.hasValues("");
-        reader.getValues("");
+        reader.hasHighlights("");
         reader.getValue("", 0);
+        reader.getAllValuesForRole("", 0);
         reader.getFirstNonNullValueForCategory("", 0);
         reader.getMeasureQueryName("");
         reader.getValueColumn("");
+        reader.getValueMetadataColumn("");
+        reader.getAllValueMetadataColumnsForRole("", 0);
+        reader.getValueDisplayName("");
         
         // Series methods
         reader.hasDynamicSeries();
-        reader.getSeriesCount();
+        reader.getSeriesCount("");
         reader.getSeriesObjects(0);
-        reader.getSeriesColumn(0);
-        reader.getSeriesColumns();
-        reader.getSeriesSource();
-        reader.getSeriesColumnIdentifier();
+        reader.getSeriesValueColumns();
+        reader.getSeriesValueColumnGroup(0);
+        reader.getSeriesMetadataColumn();
+        reader.getSeriesColumnIdentityFields();
         reader.getSeriesName(0);
         reader.getSeriesDisplayName();
     }

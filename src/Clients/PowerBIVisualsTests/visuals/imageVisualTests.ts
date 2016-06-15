@@ -24,7 +24,7 @@
  *  THE SOFTWARE.
  */
 
-
+/// <reference path="../_references.ts"/>
 
 module powerbitests {
     import ImageVisual = powerbi.visuals.ImageVisual;
@@ -77,6 +77,14 @@ module powerbitests {
             imageVisualDataBuilder.update();
 
             expect(imageVisualDataBuilder.imageBackgroundElement.css("background-image")).toBe("url(" + imageBase64value + ")");
+        });
+
+        it("Image from blob", () => {
+            let blobUrl = window.URL.createObjectURL(new Blob());
+            imageVisualDataBuilder.imageUrl = blobUrl;
+            imageVisualDataBuilder.update();
+
+            expect(imageVisualDataBuilder.imageBackgroundElement.css("background-image")).toBe("url(" + blobUrl + ")");
         });
 
         it("Image DOM Verification", () => {

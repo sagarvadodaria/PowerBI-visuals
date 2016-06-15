@@ -24,7 +24,7 @@
  *  THE SOFTWARE.
  */
 
-
+/// <reference path="../_references.ts"/>
 
 module powerbitests {
     import DataViewTransform = powerbi.data.DataViewTransform;
@@ -64,8 +64,12 @@ module powerbitests {
                 expect($(slicerHelper.slicerTextClassSelector).first().attr('title')).toBe(slicerHelper.SelectAllTextKey);
                 expect($(slicerHelper.slicerTextClassSelector).last().text()).toBe("Banana");
                 expect($(slicerHelper.slicerTextClassSelector).last().attr('title')).toBe("Banana");
-                expect($(slicerHelper.slicerCountTextClassSelector)[1].textContent).toBe("");
-                expect($(slicerHelper.slicerCountTextClassSelector)[5].textContent).toBe("6");
+
+                expect($(slicerHelper.slicerCountTextClassSelector).length).toBe(4);
+                expect($(slicerHelper.slicerCountTextClassSelector)[0].textContent).toBe('3');
+                expect($(slicerHelper.slicerCountTextClassSelector)[1].textContent).toBe('4');
+                expect($(slicerHelper.slicerCountTextClassSelector)[2].textContent).toBe('5');
+                expect($(slicerHelper.slicerCountTextClassSelector)[3].textContent).toBe('6');
 
                 expect(powerbi.visuals.valueFormatter.format).toHaveBeenCalledWith("Apple", undefined);
                 expect(powerbi.visuals.valueFormatter.format).toHaveBeenCalledWith("Orange", undefined);
@@ -108,10 +112,10 @@ module powerbitests {
                 expect($(slicerHelper.slicerTextClassSelector).first().attr('title')).toBe(slicerHelper.SelectAllTextKey);
                 expect($(slicerHelper.slicerTextClassSelector).last().text()).toBe("Blackberry");
                 expect($(slicerHelper.slicerTextClassSelector).last().attr('title')).toBe("Blackberry");
-                expect($(slicerHelper.slicerCountTextClassSelector)[0].textContent).toBe("");
-                expect($(slicerHelper.slicerCountTextClassSelector)[1].textContent).toBe("40");
-                expect($(slicerHelper.slicerCountTextClassSelector)[2].textContent).toBe("25");
-                expect($(slicerHelper.slicerCountTextClassSelector)[3].textContent).toBe("22");
+                expect($(slicerHelper.slicerCountTextClassSelector).length).toBe(3);
+                expect($(slicerHelper.slicerCountTextClassSelector)[0].textContent).toBe('40');
+                expect($(slicerHelper.slicerCountTextClassSelector)[1].textContent).toBe('25');
+                expect($(slicerHelper.slicerCountTextClassSelector)[2].textContent).toBe('22');
             });
 
             it("DOM Validation - Tooltip of Long Text", () => {
@@ -237,7 +241,7 @@ module powerbitests {
                 expect(slicerData).toEqual(expectedSlicerData);
             });
             
-            xit("Resize", () => {
+            it("Resize", () => {
                 let viewport = {
                     height: 200,
                     width: 300
@@ -247,7 +251,8 @@ module powerbitests {
 
                 expect($(".slicerContainer .slicerBody").first().css("height")).toBe("181px");
                 expect($(".slicerContainer .slicerBody").first().css("width")).toBe("300px");
-                expect($(".slicerContainer .headerText").first().css("width")).toBe("269px");
+                expect($(".slicerContainer .slicerHeader").first().css("width")).toBe("292px");
+                expect($(".slicerContainer .titleHeader").first().css("width")).toBe("284px");
 
                 // Next Resize
                 let viewport2 = {
@@ -259,6 +264,15 @@ module powerbitests {
 
                 expect($(".slicerContainer .slicerBody").first().css("height")).toBe("131px");
                 expect($(".slicerContainer .slicerBody").first().css("width")).toBe("150px");
+            });
+
+            it("DOM Validation - SearchHeader visible", () => {
+                expect($('.searchHeader').length).toBe(1);
+                expect($(".searchHeader").css('display')).toBe('none');
+                let dataView: powerbi.DataView = slicerHelper.buildDataViewWithSelfFilter(SlicerOrientation.Vertical, builder.field);
+                helpers.fireOnDataChanged(builder.visual, { dataViews: [dataView] });
+                expect($('.searchHeader').length).toBe(1);
+                expect($(".searchHeader").css('display')).not.toBe('none');
             });
         });
 
@@ -298,8 +312,9 @@ module powerbitests {
                 helpers.fireOnDataChanged(builder.visual, dvOptionsFilter);
             }
             function scrollBy(itemCount: number): void {
-                // Get 'real' row height
-                let rowHeight = $('.slicerItemContainer').eq(0).outerHeight(true);
+                // Get 'real' row height. Measure the parent and the child in case the child has a margin that outerHeight ignores when measuring the parent.
+                let row = $('.row').eq(0);
+                let rowHeight = Math.max(row.outerHeight(true), row.children().first().outerHeight(true));
                 // Scrolling
                 $(".slicerBody .scrollbar-inner.scroll-content").scrollTop(itemCount * rowHeight);
             }
@@ -379,7 +394,7 @@ module powerbitests {
         describe("Interactivity tests", () => {
             it("slicer item selectby checkbox", () => {
                 jasmine.clock().tick(0);
-                (<any>builder.slicerCheckbox.eq(1)).d3Click(0, 0);
+                builder.slicerCheckbox.eq(1).d3Click(0, 0);
 
                 slicerHelper.validateSelectionState(SlicerOrientation.Vertical, [1], builder);
                 expect(builder.hostServices.onSelect).toHaveBeenCalledWith({

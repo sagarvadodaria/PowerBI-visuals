@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Power BI Visualizations
  *
  *  Copyright (c) Microsoft Corporation
@@ -83,6 +83,28 @@ module powerbi.data {
                 };
             }
 
+            public visitHierarchyLevel(expr: SQHierarchyLevelExpr): {} {
+                return {
+                    h: expr.arg.accept(this),
+                    l: expr.level,
+                };
+            }
+
+            public visitHierarchy(expr: SQHierarchyExpr): {} {
+                return {
+                    e: expr.arg.accept(this),
+                    h: expr.hierarchy,
+                };
+            }
+
+            public visitPropertyVariationSource(expr: SQPropertyVariationSourceExpr): {} {
+                return {
+                    e: expr.arg.accept(this),
+                    n: expr.name,
+                    p: expr.property,
+                };
+            }
+
             public visitAnd(expr: SQAndExpr): {} {
                 debug.assertValue(expr, 'expr');
 
@@ -113,6 +135,39 @@ module powerbi.data {
                     const: {
                         t: expr.type.primitiveType,
                         v: expr.value,
+                    }
+                };
+            }
+
+            public visitArithmetic(expr: SQArithmeticExpr): {} {
+                debug.assertValue(expr, 'expr');
+
+                return {
+                    arithmetic: {
+                        o: expr.operator,
+                        l: expr.left.accept(this),
+                        r: expr.right.accept(this)
+                    }
+                };
+            }
+
+            public visitScopedEval(expr: SQScopedEvalExpr): {} {
+                debug.assertValue(expr, 'expr');
+
+                return {
+                    scopedEval: {
+                        e: expr.expression.accept(this),
+                        s: serializeArray(expr.scope)
+                    }
+                };
+            }
+            
+            public visitWithRef(expr: SQWithRefExpr): {} {
+                debug.assertValue(expr, 'expr');
+                
+                return {
+                    withRef: {
+                        e: expr.expressionName
                     }
                 };
             }

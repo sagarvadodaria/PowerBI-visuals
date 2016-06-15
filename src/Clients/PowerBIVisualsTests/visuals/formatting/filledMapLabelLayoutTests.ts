@@ -24,7 +24,7 @@
  *  THE SOFTWARE.
  */
 
-
+/// <reference path="../../_references.ts"/>
 
 module powerbitests {
 
@@ -407,7 +407,6 @@ module powerbitests {
             let labelDataPoints = [
                 createLabelDataPoint("text to enusure label doesn't fit", parentShape)
             ];
-
 
             let prelabels = filledMapLabelLayout.layout(labelDataPoints, viewport, transform, true);
             let prelabelsAbsoluteBoundingBoxCenter: IPoint = {

@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Power BI Visualizations
  *
  *  Copyright (c) Microsoft Corporation
@@ -29,10 +29,13 @@
 module powerbi.data {
     import SQExpr = powerbi.data.SQExpr;
 
-    export function createStaticEvalContext(): IEvalContext;
-    export function createStaticEvalContext(dataView: DataView, selectTransforms: DataViewSelectTransform[]): IEvalContext;
-    export function createStaticEvalContext(dataView?: DataView, selectTransforms?: DataViewSelectTransform[]): IEvalContext {
-        return new StaticEvalContext(dataView || { metadata: { columns: [] } }, selectTransforms);
+    export function createStaticEvalContext(colorAllocatorCache?: IColorAllocatorCache): IEvalContext;
+    export function createStaticEvalContext(colorAllocatorCache: IColorAllocatorCache, dataView: DataView, selectTransforms: DataViewSelectTransform[]): IEvalContext;
+    export function createStaticEvalContext(colorAllocatorCache: IColorAllocatorCache, dataView?: DataView, selectTransforms?: DataViewSelectTransform[]): IEvalContext {
+        return new StaticEvalContext(
+            colorAllocatorCache || createColorAllocatorCache(),
+            dataView || { metadata: { columns: [] } },
+            selectTransforms);
     }
 
     /**
@@ -40,26 +43,40 @@ module powerbi.data {
      * are supported.
      */
     class StaticEvalContext implements IEvalContext {
+        private colorAllocatorCache: IColorAllocatorCache;
         private dataView: DataView;
         private selectTransforms: DataViewSelectTransform[];
 
-        constructor(dataView: DataView, selectTransforms: DataViewSelectTransform[]) {
+        constructor(colorAllocatorCache: IColorAllocatorCache, dataView: DataView, selectTransforms: DataViewSelectTransform[]) {
+            debug.assertValue(colorAllocatorCache, 'colorAllocatorCache');
             debug.assertValue(dataView, 'dataView');
             debug.assertAnyValue(selectTransforms, 'selectTransforms');
 
+            this.colorAllocatorCache = colorAllocatorCache;
             this.dataView = dataView;
             this.selectTransforms = selectTransforms;
+        }
+
+        public getColorAllocator(expr: SQFillRuleExpr): IColorAllocator {
+            return this.colorAllocatorCache.get(expr);
         }
 
         public getExprValue(expr: SQExpr): PrimitiveValue {
             let dataView = this.dataView,
                 selectTransforms = this.selectTransforms;
-            if (dataView && dataView.table && selectTransforms)
-                return getExprValue(expr, selectTransforms, dataView.table);
-        }
 
-        public getCurrentIdentity(): DataViewScopeIdentity {
-            return;
+            if (!dataView || !selectTransforms)
+                return;
+
+            if (SQExpr.isAggregation(expr)) {
+                let columnAggregate = findAggregateValue(expr, selectTransforms, dataView.metadata.columns);
+                if (columnAggregate !== undefined) {
+                    return columnAggregate;
+                }
+            }
+
+            if (dataView.table)
+                return getExprValueFromTable(expr, selectTransforms, dataView.table, /*rowIdx*/ 0);
         }
 
         public getRoleValue(roleName: string): PrimitiveValue {
@@ -67,28 +84,98 @@ module powerbi.data {
         }
     }
 
-    function getExprValue(expr: SQExpr, selectTransforms: DataViewSelectTransform[], table: DataViewTable): PrimitiveValue {
+    export function getExprValueFromTable(expr: SQExpr, selectTransforms: DataViewSelectTransform[], table: DataViewTable, rowIdx: number): PrimitiveValue {
         debug.assertValue(expr, 'expr');
         debug.assertValue(selectTransforms, 'selectTransforms');
         debug.assertValue(table, 'table');
+        debug.assertValue(rowIdx, 'rowIdx');
 
         let rows = table.rows;
-        if (rows && rows.length !== 1)
+        if (_.isEmpty(rows) || rows.length <= rowIdx)
             return;
 
         let cols = table.columns;
-        for (let selectIdx = 0, selectLen = selectTransforms.length; selectIdx < selectLen; selectIdx++) {
-            let selectTransform = selectTransforms[selectIdx];
-            if (!SQExpr.equals(selectTransform.expr, expr) || !selectTransform.queryName)
+
+        let selectIdx = findSelectIndex(expr, selectTransforms);
+        if (selectIdx < 0)
+            return;
+
+        for (let colIdx = 0, colLen = cols.length; colIdx < colLen; colIdx++) {
+            if (selectIdx !== cols[colIdx].index)
                 continue;
 
-            for (let colIdx = 0, colLen = cols.length; colIdx < colLen; colIdx++) {
-                if (selectIdx !== cols[colIdx].index)
-                    continue;
+            return rows[rowIdx][colIdx];
+        }
+    }
 
-                return rows[0][colIdx];
+    function findAggregateValue(expr: SQAggregationExpr, selectTransforms: DataViewSelectTransform[], columns: DataViewMetadataColumn[]): PrimitiveValue {
+        debug.assertValue(expr, 'expr');
+        debug.assertValue(selectTransforms, 'selectTransforms');
+        debug.assertValue(columns, 'columns');
+
+        let selectIdx = findSelectIndex(expr.arg, selectTransforms);
+        if (selectIdx < 0)
+            return;
+
+        for (let colIdx = 0, colLen = columns.length; colIdx < colLen; colIdx++) {
+            let column = columns[colIdx],
+                columnAggr = column.aggregates;
+
+            if (selectIdx !== column.index || !columnAggr)
+                continue;
+
+            let aggregateValue = findAggregates(columnAggr, expr.func);
+            if (aggregateValue !== undefined)
+                return aggregateValue;
+        }
+    }
+
+    export function findSelectIndex(expr: SQExpr, selectTransforms: DataViewSelectTransform[]): number {
+        debug.assertValue(expr, 'expr');
+        debug.assertValue(selectTransforms, 'selectTransforms');
+
+        let queryName: string;
+        if (SQExpr.isSelectRef(expr))
+            queryName = expr.expressionName;
+
+        for (let selectIdx = 0, selectLen = selectTransforms.length; selectIdx < selectLen; selectIdx++) {
+            let selectTransform = selectTransforms[selectIdx];
+
+            if (!selectTransform || !selectTransform.queryName)
+                continue;
+
+            if (queryName) {
+                if (selectTransform.queryName === queryName)
+                    return selectIdx;
+            }
+            else {
+                if (SQExpr.equals(selectTransform.expr, expr))
+                    return selectIdx;
             }
         }
 
+        return -1;
+    }
+
+    function findAggregates(aggregates: DataViewColumnAggregates, func: QueryAggregateFunction): PrimitiveValue {
+        debug.assertValue(aggregates, 'aggregates');
+        debug.assertValue(func, 'func');
+
+        switch (func) {
+            case QueryAggregateFunction.Min:
+                return getOptional(aggregates.min, aggregates.minLocal);
+            case QueryAggregateFunction.Max:
+                return getOptional(aggregates.max, aggregates.maxLocal);
+        }
+    }
+
+    function getOptional(value1: PrimitiveValue, value2: PrimitiveValue): PrimitiveValue {
+        debug.assertAnyValue(value1, 'value1');
+        debug.assertAnyValue(value2, 'value2');
+
+        if (value1 !== undefined)
+            return value1;
+
+        return value2;
     }
 }

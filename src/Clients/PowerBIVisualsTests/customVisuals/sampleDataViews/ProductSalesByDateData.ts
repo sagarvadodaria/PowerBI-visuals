@@ -24,137 +24,75 @@
  *  THE SOFTWARE.
  */
 
-
+/// <reference path="../../_references.ts"/>
 
 module powerbitests.customVisuals.sampleDataViews {
-    import SQExprBuilder = powerbi.data.SQExprBuilder;
-    import DataView = powerbi.DataView;
-    import DataViewMetadata = powerbi.DataViewMetadata;
     import ValueType = powerbi.ValueType;
-    import DataViewTransform = powerbi.data.DataViewTransform;
-    import DataViewValueColumns = powerbi.DataViewValueColumns;
-    import DataViewValueColumn = powerbi.DataViewValueColumn;
-    import DataViewMetadataColumn = powerbi.DataViewMetadataColumn;
 
-    export class ProductSalesByDateData {
+    export class ProductSalesByDateData extends DataViewBuilder {
+        public static ColumnCategory: string = "Date";
+        public static ColumnValues1: string = "Product sales 1";
+        public static ColumnValues2: string = "Product sales 2";
+        public static ColumnValues3: string = "Product sales 3";
+        public static ColumnValues4: string = "Product sales 4";
 
-        private static seriesCount = 4;
-        private static valuesCount = 50;
+        public valuesDate: Date[] = helpers.getRandomUniqueSortedDates(50, new Date(2014,0,1), new Date(2015,5,10));
+        public valuesSales1: number[] = helpers.getRandomNumbers(this.valuesDate.length);
+        public valuesSales2: number[] = helpers.getRandomNumbers(this.valuesDate.length);
+        public valuesSales3: number[] = helpers.getRandomNumbers(this.valuesDate.length);
+        public valuesSales4: number[] = helpers.getRandomNumbers(this.valuesDate.length);
 
-        private sampleData: number[][];
-        private dates: Date[];
-        
-        constructor() {
-            this.sampleData = this.generateData(ProductSalesByDateData.seriesCount, ProductSalesByDateData.valuesCount);
-            this.dates = this.generateDates(ProductSalesByDateData.valuesCount);
-        }
-
-        public getDataView(): DataView {
-            let dataViewMetadata: DataViewMetadata = {
-                columns: this.generateColumnMetadata(ProductSalesByDateData.seriesCount)
-            };
-
-            let columns = this.generateColumns(dataViewMetadata, ProductSalesByDateData.seriesCount);
-            let categoryValues = this.dates;
-
-            let dataValues: DataViewValueColumns = DataViewTransform.createValueColumns(columns);
-            let fieldExpr = SQExprBuilder.fieldExpr({ column: { schema: 's', entity: "table1", name: "date" }});
-            let categoryIdentities = categoryValues.map((value) =>
-                powerbi.data.createDataViewScopeIdentity(SQExprBuilder.equal(fieldExpr, SQExprBuilder.dateTime(value))));
-
-            let tableDataValues = helpers.getTableDataValues(categoryValues, columns);
-
-            return {
-                metadata: dataViewMetadata,
-                categorical: {
-                    categories: [{
-                        source: dataViewMetadata.columns[0],
-                        values: categoryValues,
-                        identity: categoryIdentities,
-                    }],
-                    values: dataValues
-                },
-                table: {
-                    rows: tableDataValues,
-                    columns: dataViewMetadata.columns,
-                },
-                single: { value: Array.prototype.concat.apply([], this.sampleData) }
-            };
-        };
-
-        private generateColumns(dataViewMetadata: DataViewMetadata, count: number): DataViewValueColumn[] {
-            let columns: DataViewValueColumn[] = [];
-            for(let i=0; i<count; i++){
-                columns.push({
-                    source: dataViewMetadata.columns[i+1],
-                    // Sales Amount for 2014
-                    values: this.sampleData[i],
-                });
-            }
-            
-            return columns;
-        }
-
-        private generateColumnMetadata(n: number): DataViewMetadataColumn[] {
-            let columns: DataViewMetadataColumn[] = [{
-                        displayName: 'Date',
-                        queryName: 'Date',
+        public getDataView(columnNames?: string[]): powerbi.DataView {
+            return this.createCategoricalDataViewBuilder([
+                {
+                    source: {
+                        displayName: ProductSalesByDateData.ColumnCategory,
                         type: ValueType.fromDescriptor({ dateTime: true })
-                    }];
-                    
-            for(let i = 0;i < n; i++) {
-                columns.push({
-                        displayName: 'Product '+(i+1),
+                    },
+                    values: this.valuesDate
+                }
+                ],[
+                {
+                    source: {
+                        displayName: ProductSalesByDateData.ColumnValues1,
                         isMeasure: true,
                         format: "$0,000.00",
-                        queryName: 'sales'+i,
-                        groupName: 'Product ' +(i+1),
+                        groupName: "Product",
                         type: ValueType.fromDescriptor({ numeric: true }),
-                    });
-            }
-            
-            return columns;
-        }
-
-        private generateData(seriesCount: number, valuesCount: number): number[][] {
-            let data: number[][] = [];
-            for(let i=0; i<seriesCount; i++) {
-                data.push(this.generateSeries(valuesCount));
-            }
-
-            return data;
-        }
-
-        private generateSeries(count: number): number[] {
-            let values = Array.apply(null, Array(count)).map(x => 0);
-            for (let i = 0; i < 5; ++i) {
-                let x = 1 / (.1 + Math.random()),
-                    y = 2 * Math.random() - .5,
-                    z = 10 / (.1 + Math.random());
-                for (let i = 0; i < count; i++) {
-                    let w = (i / count - y) * z;
-                    values[i] += x * Math.exp(-w * w);
+                    },
+                    values: this.valuesSales1
+                },
+                {
+                    source: {
+                        displayName: ProductSalesByDateData.ColumnValues2,
+                        isMeasure: true,
+                        format: "$0,000.00",
+                        groupName: "Product",
+                        type: ValueType.fromDescriptor({ numeric: true }),
+                    },
+                    values: this.valuesSales1
+                },
+                {
+                    source: {
+                        displayName: ProductSalesByDateData.ColumnValues3,
+                        isMeasure: true,
+                        format: "$0,000.00",
+                        groupName: "Product",
+                        type: ValueType.fromDescriptor({ numeric: true }),
+                    },
+                    values: this.valuesSales2
+                },
+                {
+                    source: {
+                        displayName: ProductSalesByDateData.ColumnValues4,
+                        isMeasure: true,
+                        format: "$0,000.00",
+                        groupName: "Product",
+                        type: ValueType.fromDescriptor({ numeric: true }),
+                    },
+                    values: this.valuesSales3
                 }
-            }
-            return values.map(x => Math.max(0, x) * 10000);
-        }
-
-        private generateDates(count: number): Date[] {
-            let dates: Date[] = [];
-            for(let i=0; i<count; i++) {
-                let randDate = this.randomDate(new Date(2014,0,1), new Date(2015,5,10));
-                if(_.contains(dates,randDate)) {
-                    i--;
-                } else {
-                    dates.push(randDate);
-                }
-            }
-            
-            return dates.sort((a,b) => a.getTime() > b.getTime() ? 1 : -1);
-        }
-
-        private randomDate(start, end): Date {
-            return new Date(start.getTime() + Math.random() * (end.getTime() - start.getTime()));
+                ], columnNames).build();
         }
     }
 }

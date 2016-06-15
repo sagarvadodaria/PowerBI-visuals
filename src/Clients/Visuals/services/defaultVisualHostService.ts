@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Power BI Visualizations
  *
  *  Copyright (c) Microsoft Corporation
@@ -56,11 +56,12 @@ module powerbi.visuals {
         'Percentage1': '#,0.#%',
         'RichTextbox_Link_DefaultText': 'Link',
         'TableTotalLabel': 'Total',
+        'ListJoin_Separator': ', ',
         'Tooltip_HighlightedValueDisplayName': 'Highlighted',
         'Funnel_PercentOfFirst': 'Percent of first',	
         'Funnel_PercentOfPrevious': 'Percent of previous',
-        'Funnel_PercentOfFirst_Highlight': 'Percent of first (highlight)',
-        'Funnel_PercentOfPrevious_Highlight': 'Percent of previous (highlight)',
+        'Funnel_PercentOfFirst_Highlight': 'Percent of first (highlighted)',
+        'Funnel_PercentOfPrevious_Highlight': 'Percent of previous (highlighted)',
         // Geotagging strings
         'GeotaggingString_Continent': 'continent',
         'GeotaggingString_Continents': 'continents',
@@ -145,6 +146,7 @@ module powerbi.visuals {
         public onDragStart(): void { }
         public canSelect(): boolean { return false; }
         public onSelect(): void { }
+        public onContextMenu(): void { }
         public loadMoreData(): void { }
         public persistProperties(changes: VisualObjectInstance[] | VisualObjectInstancesToPersist): void { }
         public onCustomSort(args: CustomSortEventArgs) { }
@@ -153,7 +155,9 @@ module powerbi.visuals {
         public setToolbar($toolbar: JQuery): void { }
         public shouldRetainSelection(): boolean { return false; }
         public geocoder(): IGeocoder { return services.createGeocoder(); }
+        public geolocation(): IGeolocation { return services.createGeolocation(); }
         public promiseFactory(): IPromiseFactory { return createJQueryPromiseFactory(); }
+        public visualCapabilitiesChanged(): void { }
         public analyzeFilter(options: FilterAnalyzerOptions): AnalyzedFilter {
             return {
                 isNotFilter: false,
@@ -183,5 +187,5 @@ module powerbi.visuals {
         }
     }
 
-    export const defaultVisualHostServices: IVisualHostServices = new DefaultVisualHostServices();
+  export const defaultVisualHostServices: IVisualHostServices = new DefaultVisualHostServices();
 } 

@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Power BI Visualizations
  *
  *  Copyright (c) Microsoft Corporation
@@ -30,6 +30,7 @@ module powerbi {
 
     import shapes = powerbi.visuals.shapes;
     import IRect = powerbi.visuals.IRect;
+    import IThickness = visuals.shapes.IThickness;
 
     /** Defines possible content positions.  */
     export const enum ContentPositions {
@@ -672,7 +673,7 @@ module powerbi {
          * @param rect The rectengle to check.
          * @return grid index as a thickness object.
          */
-        private getGridIndexRect(rect: IRect): shapes.IThickness {
+        private getGridIndexRect(rect: IRect): IThickness {
             let restrict = (n, min, max) => Math.min(Math.max(n, min), max);
             return {
                 left: restrict(Math.floor(rect.left / this.cellSize.width), 0, this.colCount),

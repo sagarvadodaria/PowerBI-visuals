@@ -24,6 +24,8 @@
  *  THE SOFTWARE.
  */
 
+/// <reference path="../_references.ts"/>
+
 module powerbi.visuals {
     import DataRoleHelper = powerbi.data.DataRoleHelper;
 
@@ -152,7 +154,7 @@ module powerbi.visuals {
 
             this.setShowDataMissingWarning(!(kpiViewModel.indicatorExists && kpiViewModel.trendExists));
 
-            if (kpiViewModel.dataPoints.length === 0 || !kpiViewModel.historyExists || !kpiViewModel.indicatorExists || !kpiViewModel.trendExists) {
+            if (kpiViewModel.dataPoints.length === 0 || !kpiViewModel.indicatorExists || !kpiViewModel.trendExists) {
                 this.areaFill.attr("visibility", "hidden");
                 this.svg.attr("visibility", "hidden");
                 this.textContainer.attr("style", "display:none");
@@ -217,8 +219,8 @@ module powerbi.visuals {
             this.absoluteGoalDistanceText
                 .attr("text-anchor", "middle")
                 .text(shownGoalString + shownDistanceFromGoalString);
-            
-            if (kpiViewModel.showTrendLine) {
+
+            if (kpiViewModel.showTrendLine && kpiViewModel.historyExists) {
                 let area = d3.svg.area()
                     .x(function (d) { return d.x; })
                     .y0(viewport.height)
@@ -247,16 +249,6 @@ module powerbi.visuals {
                 textSize: 27,
                 wordWrap: false
             };
-        }
-
-        private static getMetaDataColumn(dataView: DataView): DataViewMetadataColumn {
-            if (dataView && dataView.metadata && dataView.metadata.columns) {
-                for (let column of dataView.metadata.columns) {
-                    if (column.isMeasure) {
-                        return column;
-                    }
-                }
-            }
         }
 
         private static getFormatString(column: DataViewMetadataColumn): string {
@@ -321,13 +313,13 @@ module powerbi.visuals {
             }
         }
 
-        private static getFormattedValue(metaDataColumn: DataViewMetadataColumn, theValue: number, precision: number, displayUnits: number): string {
+        private static getFormattedValue(metaDataColumn: DataViewMetadataColumn, theValue: number, precision: number, displayUnits: number, displayUnitSystemType: DisplayUnitSystemType = DisplayUnitSystemType.WholeUnits): string {
             let isDefaultDisplayUnit = displayUnits === 0;
             let formatter = valueFormatter.create({
                 format: KPIStatusWithHistory.getFormatString(metaDataColumn),
                 value: displayUnits,
                 precision: precision,
-                displayUnitSystemType: DisplayUnitSystemType.WholeUnits, // keeps this.displayUnitSystemType as the displayUnitSystemType unless the user changed the displayUnits or the precision
+                displayUnitSystemType: displayUnitSystemType,
                 formatSingleValues: isDefaultDisplayUnit ? true : false,
                 allowFormatBeautification: true,
                 columnType: metaDataColumn ? metaDataColumn.type : undefined
@@ -352,7 +344,8 @@ module powerbi.visuals {
         public static converter(dataView: DataView, viewPort: powerbi.IViewport, directionType: string): KPIStatusWithHistoryData {
             let dataPoints: KPIStatusWithHistoryDataPoint[] = [];
             let catDv: DataViewCategorical = dataView.categorical;
-            let metaDataColumn = KPIStatusWithHistory.getMetaDataColumn(dataView);
+            let indicatorMetadataColumn: DataViewMetadataColumn = null;
+            let goalMetadataColumn: DataViewMetadataColumn = null;
             let formattedGoalString = "";
             let formattedValue = "";
             let targetExists = false;
@@ -371,11 +364,18 @@ module powerbi.visuals {
             for (let column of columns) {
                 if (DataRoleHelper.hasRole(column, 'Indicator')) {
                     indicatorExists = true;
+                    indicatorMetadataColumn = column;
                 }
 
                 if (DataRoleHelper.hasRole(column, 'TrendLine')) {
                     trendExists = true;
                 }
+
+                if (DataRoleHelper.hasRole(column, 'Goal')) {
+                    targetExists = true;
+                    goalMetadataColumn = column;
+                }
+
             }
 
             if (!indicatorExists || !trendExists || !values || values.length === 0 || !values[0].values || !dataView.categorical.values) {
@@ -408,10 +408,6 @@ module powerbi.visuals {
             let indicatorColumns: DataViewValueColumn[] = KPIStatusWithHistory.getColumnsByRole(values, "Indicator");
 
             let goalColumns: DataViewValueColumn[] = KPIStatusWithHistory.getColumnsByRole(values, "Goal");
-
-            if (goalColumns.length > 0) {
-                targetExists = true;
-            }
 
             let actualValue;
 
@@ -463,9 +459,9 @@ module powerbi.visuals {
                 historyExists = false;
             }
 
-            formattedValue = KPIStatusWithHistory.getFormattedValue(metaDataColumn, actual, precision, displayUnits);
+            formattedValue = KPIStatusWithHistory.getFormattedValue(indicatorMetadataColumn, actual, precision, displayUnits, DisplayUnitSystemType.DataLabels);
 
-            formattedGoalString = KPIStatusWithHistory.getFormattedGoalString(metaDataColumn, goals, precision, displayUnits);
+            formattedGoalString = KPIStatusWithHistory.getFormattedGoalString(goalMetadataColumn, goals, precision, displayUnits);
 
             let showGoal = KPIStatusWithHistory.getProp_Show_KPIGoal(dataView);
 

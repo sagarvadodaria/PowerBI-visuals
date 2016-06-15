@@ -24,6 +24,8 @@
 *  THE SOFTWARE.
 */
 
+/// <reference path="../_references.ts"/>
+
 module powerbi.visuals.sampleDataViews {
     import DataViewTransform = powerbi.data.DataViewTransform;
 
@@ -90,8 +92,8 @@ module powerbi.visuals.sampleDataViews {
             this.sampleData = this.generateData(ProductSalesByDate.seriesCount,ProductSalesByDate.valueCount);
         }
 
-        private generateColumnMetadata(n: number){
-            let columns = [{
+        private generateColumnMetadata(n: number): DataViewMetadataColumn[]{
+            let columns: DataViewMetadataColumn[] = [{
                         displayName: 'Date',
                         queryName: 'Date',
                         type: powerbi.ValueType.fromDescriptor({ dateTime: true })

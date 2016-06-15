@@ -24,9 +24,9 @@
  *  THE SOFTWARE.
  */
 
-
-
 // TODO: We should not be validating specific styles (e.g. RGB codes) in unit tests.
+
+/// <reference path="../_references.ts"/>
 
 module powerbitests {
     import data = powerbi.data;
@@ -67,6 +67,14 @@ module powerbitests {
             expect(data.DataViewObjectDescriptors.findFilterOutput(visuals.slicerCapabilities.objects)).toEqual(visuals.slicerProps.filterPropertyIdentifier);
         });
 
+        it("SelfFilter property should match calculated", () => {
+            expect(data.DataViewObjectDescriptors.findSelfFilter(visuals.slicerCapabilities.objects)).toEqual(visuals.slicerProps.selfFilterPropertyIdentifier);
+        });
+
+        it("SelfFilterEnabled property should match calculated", () => {
+            expect(data.DataViewObjectDescriptors.findSelfFilterEnabled(visuals.slicerCapabilities.objects)).toEqual(visuals.slicerProps.general.selfFilterEnabled);
+        });
+
         it("Sort should be default so the sort UI shows", () => {
             expect(visuals.slicerCapabilities.sorting.custom).not.toBeDefined();
             expect(visuals.slicerCapabilities.sorting.default).toBeDefined();
@@ -90,7 +98,7 @@ module powerbitests {
 
                 validateSelectionState(orientation, [0, 1, 2, 3, 4, 5]);
 
-                (<any>builder.slicerText.eq(1)).d3Click(0, 0);
+                builder.slicerText.eq(1).d3Click(0, 0);
                 validateSelectionState(orientation, [2, 3, 4, 5]);
                 let partialSelect = getPartiallySelectedContainer();
                 expect(partialSelect.length).toBe(1);
@@ -107,7 +115,7 @@ module powerbitests {
                 expect(partialSelect.length).toBe(0);
 
                 let slicerText = builder.slicerText;
-                (<any>slicerText.eq(1)).d3Click(0, 0);
+                slicerText.eq(1).d3Click(0, 0);
                 partialSelect = getPartiallySelectedContainer();
                 expect(partialSelect.length).toBe(1);
                 validateSelectionState(orientation, [2, 3, 4, 5]);
@@ -117,7 +125,7 @@ module powerbitests {
                 partialSelect = getPartiallySelectedContainer();
                 expect(partialSelect.length).toBe(0);
 
-                (<any>slicerText.eq(1)).d3Click(0, 0);
+                slicerText.eq(1).d3Click(0, 0);
                 partialSelect = getPartiallySelectedContainer();
                 expect(partialSelect.length).toBe(1);
                 validateSelectionState(orientation, [1]);
@@ -135,7 +143,7 @@ module powerbitests {
                 validateSelectionState(orientation, [0, 1, 2, 3, 4, 5]);
 
                 // Unselect a single checkbox. This should work even though multi-selection is disabled.
-                (<any>builder.slicerText.eq(1)).d3Click(0, 0);
+                builder.slicerText.eq(1).d3Click(0, 0);
                 validateSelectionState(orientation, [2, 3, 4, 5]);
                 let partialSelect = getPartiallySelectedContainer();
                 expect(partialSelect.length).toBe(1);
@@ -146,14 +154,14 @@ module powerbitests {
                 let slicerText = builder.slicerText;
 
                 // Slicer click
-                (<any>slicerText.eq(1)).d3Click(0, 0);
+                slicerText.eq(1).d3Click(0, 0);
                 validateSelectionState(orientation, [1]);
 
-                (<any>slicerText.eq(2)).d3Click(0, 0);
+                slicerText.eq(2).d3Click(0, 0);
                 validateSelectionState(orientation, [1, 2]);
 
                 /* Slicer clear */
-                (<any>clearBtn.first()).d3Click(0, 0);
+                clearBtn.first().d3Click(0, 0);
 
                 validateSelectionState(orientation, []);
                 expect(builder.hostServices.onSelect).toHaveBeenCalledWith({ data: [] });
@@ -161,7 +169,7 @@ module powerbitests {
 
             it("Slicer item select by text", () => {
                 jasmine.clock().tick(0);
-                (<any>builder.slicerText.eq(1)).d3Click(0, 0);
+                builder.slicerText.eq(1).d3Click(0, 0);
                 validateSelectionState(orientation, [1]);
 
                 expect(builder.hostServices.onSelect).toHaveBeenCalledWith({
@@ -178,13 +186,13 @@ module powerbitests {
 
             it("Slicer item repeated selection", () => {
                 let slicerText = builder.slicerText;
-                (<any>slicerText.eq(1)).d3Click(0, 0);
+                slicerText.eq(1).d3Click(0, 0);
                 validateSelectionState(orientation, [1]);
 
-                (<any>slicerText.last()).d3Click(0, 0);
+                slicerText.last().d3Click(0, 0);
                 validateSelectionState(orientation, [1, 5]);
 
-                (<any>slicerText.last()).d3Click(0, 0);
+                slicerText.last().d3Click(0, 0);
                 validateSelectionState(orientation, [1]);
             });
 
@@ -197,12 +205,16 @@ module powerbitests {
                 builder.initializeHelperElements();
 
                 let slicerText = builder.slicerText;
-                (<any>slicerText.eq(1)).d3Click(0, 0);
+                slicerText.eq(1).d3Click(0, 0);
                 validateSelectionState(orientation, [1]);
 
                 // Select another checkbox. The previously selected one should be cleared.
-                (<any>slicerText.eq(2)).d3Click(0, 0);
+                slicerText.eq(2).d3Click(0, 0);
                 validateSelectionState(orientation, [2]);
+
+                // Select another checkbox using ctrl. The prvious one should not be cleared.
+                slicerText.eq(1).d3Click(0, 0, 1);
+                validateSelectionState(orientation, [1, 2]);
 
                 // validate the style for select
                 expect(getSlicerContainer(orientation).hasClass('isMultiSelectEnabled')).toBe(false);
@@ -210,11 +222,11 @@ module powerbitests {
 
             it("Multi-select mode", () => {
                 let slicerText = builder.slicerText;
-                (<any>slicerText.eq(1)).d3Click(0, 0);
+                slicerText.eq(1).d3Click(0, 0);
                 validateSelectionState(orientation, [1]);
 
                 // Select another item. The previously selected one shouldn't be cleared.
-                (<any>slicerText.eq(2)).d3Click(0, 0);
+                slicerText.eq(2).d3Click(0, 0);
                 validateSelectionState(orientation, [1, 2]);
 
                 // validate the style for multi select
@@ -248,6 +260,33 @@ module powerbitests {
                 helpers.fireOnDataChanged(visual, { dataViews: [dataView] });
                 expect(getSelectAllItem().length).toBe(0);
             });
+
+            it('Single select only for non-aggregateable column', () => {
+                let dataView = builder.dataView;
+                let visual = builder.visual;
+                dataView.metadata.objects["selection"] = { selectAllCheckboxEnabled: true };
+
+                helpers.fireOnDataChanged(visual, { dataViews: [dataView] });
+                expect(getSelectAllItem().length).toBe(1);
+
+                dataView.metadata.columns[0].discourageAggregationAcrossGroups = true;
+
+                helpers.fireOnDataChanged(visual, { dataViews: [dataView] });
+                expect(getSelectAllItem().length).toBe(0);
+
+                builder.initializeHelperElements();
+
+                let slicerText = builder.slicerText;
+                slicerText.eq(1).d3Click(0, 0);
+                validateSelectionState(orientation, [1]);
+
+                // Select another checkbox. The previously selected one should be cleared.
+                slicerText.eq(2).d3Click(0, 0);
+                validateSelectionState(orientation, [2]);
+
+                // validate the style for select
+                expect(getSlicerContainer(orientation).hasClass('isMultiSelectEnabled')).toBe(false);
+            });
         }
 
         describe("VerticalSlicer selection validation", () => validateSelection(SlicerOrientation.Vertical));
@@ -260,17 +299,17 @@ module powerbitests {
             afterEach(() => builder.destroy());
 
             it('Show hide header test', () => {
-                expect($(".slicerHeader").css('display')).toBe('block');
+                expect($(".titleHeader").css('display')).toBe('block');
 
                 let dataView = builder.dataView;
                 dataView.metadata.objects["header"] = { show: false };
                 helpers.fireOnDataChanged(builder.visual, { dataViews: [dataView] });
 
-                expect($(".slicerHeader").css('display')).toBe('none');
+                expect($(".titleHeader").css('display')).toBe('none');
             });
 
             it('Header outline color test', () => {
-                expect($(".headerText").css('border-color')).toBe('rgb(128, 128, 128)');
+                expect($(".titleHeader").css('border-color')).toBe('rgb(128, 128, 128)');
             });
 
             it('Background and font slicer text test', () => {
@@ -303,7 +342,7 @@ module powerbitests {
             });
 
             it('Test header border outline', () => {
-                expect($(".headerText").css('border-width')).toBe('0px 0px 1px');
+                expect($(".titleHeader").css('border-width')).toBe('0px 0px 1px');
 
                 let dataView = builder.dataView;
                 let visual = builder.visual;
@@ -314,27 +353,27 @@ module powerbitests {
                 };
                 helpers.fireOnDataChanged(visual, { dataViews: [dataView] });
 
-                expect($(".headerText").css('border-width')).toBe('0px');
+                expect($(".titleHeader").css('border-width')).toBe('0px');
 
                 dataView.metadata.objects["header"] = { outline: visuals.outline.topOnly };
                 helpers.fireOnDataChanged(visual, { dataViews: [dataView] });
 
-                expect($(".headerText").css('border-width')).toBe('1px 0px 0px');
+                expect($(".titleHeader").css('border-width')).toBe('1px 0px 0px');
 
                 dataView.metadata.objects["header"] = { outline: visuals.outline.topBottom };
                 helpers.fireOnDataChanged(visual, { dataViews: [dataView] });
 
-                expect($(".headerText").css('border-width')).toBe('1px 0px');
+                expect($(".titleHeader").css('border-width')).toBe('1px 0px');
 
                 dataView.metadata.objects["header"] = { outline: visuals.outline.leftRight };
                 helpers.fireOnDataChanged(visual, { dataViews: [dataView] });
 
-                expect($(".headerText").css('border-width')).toBe('0px 1px');
+                expect($(".titleHeader").css('border-width')).toBe('0px 1px');
 
                 dataView.metadata.objects["header"] = { outline: visuals.outline.frame };
                 helpers.fireOnDataChanged(visual, { dataViews: [dataView] });
 
-                expect($(".headerText").css('border-width')).toBe('1px');
+                expect($(".titleHeader").css('border-width')).toBe('1px');
             });
 
             it('Row text size', () => {
@@ -457,7 +496,7 @@ module powerbitests {
             let filterAnalyzed: boolean;
             beforeEach(() => {
                 filterAnalyzed = false;
-                builder = new slicerHelper.TestBuilder(orientation);
+                builder = new slicerHelper.TestBuilder(orientation, 200, 600);
                 builder.hostServices.analyzeFilter = (options: FilterAnalyzerOptions) => {
                     filterAnalyzed = true;
                     let defaultValueScopeIdentity = data.createDataViewScopeIdentity(data.SQExprUtils.getDataViewScopeIdentityComparisonExpr([builder.field], [data.SQExprBuilder.text('Banana')]));
@@ -467,17 +506,23 @@ module powerbitests {
 
             afterEach(() => builder.destroy());
 
-            // DEFECT 6875986 - test is failing
-            xit("On Clear should reset the default value", (done) => {
-                jasmine.clock().uninstall();
+            it("On Clear should reset the default value", () => {                
                 (<visuals.Slicer>builder.visual).onClearSelection();
                 expect(filterAnalyzed).toBe(true);
-                setTimeout(() => {
-                    let selectedContainer = getSelectedContainer();
-                    expect(selectedContainer.length).toBe(1);
+                jasmine.clock().tick(0);
+                let selectedContainer = getSelectedContainer();
+                expect(selectedContainer.length).toBe(1);
+
+                if (orientation === SlicerOrientation.Vertical) {
+                    // For vertical slicer, the element has .selected class is the checkbox.
+                    let item = $(selectedContainer).closest('.slicerItemContainer');
+                    let slicerText = $(item).find('.slicerText');
+                    expect(slicerText.text()).toBe('Banana');
+                }
+                else
+                {
                     expect(selectedContainer.text()).toBe('Banana');
-                    done();
-                }, 32);
+                }
             });
         }
 

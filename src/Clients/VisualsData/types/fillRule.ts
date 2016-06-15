@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Power BI Visualizations
  *
  *  Copyright (c) Microsoft Corporation
@@ -41,6 +41,14 @@ module powerbi {
     export type LinearGradient2 = LinearGradient2Generic<string, number>;
     export type LinearGradient3 = LinearGradient3Generic<string, number>;
 
+    export type LinearGradient2Definition = LinearGradient2Generic<SQExpr, SQExpr>;
+    export type LinearGradient3Definition = LinearGradient3Generic<SQExpr, SQExpr>;
+
     export type RuleColorStopDefinition = RuleColorStopGeneric<SQExpr, SQExpr>;
     export type RuleColorStop = RuleColorStopGeneric<string, number>;
+
+    export interface IFillRuleDefinitionVisitor<T2, T3> {
+        visitLinearGradient2(linearGradient2: LinearGradient2Definition, arg?: any): T2;
+        visitLinearGradient3(linearGradient3: LinearGradient3Definition, arg?: any): T3;
+    }
 }

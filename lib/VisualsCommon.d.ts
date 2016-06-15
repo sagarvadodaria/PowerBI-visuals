@@ -1,3 +1,8 @@
+
+
+
+
+
 declare module jsCommon {
     /**
      * DOM constants.
@@ -35,6 +40,7 @@ declare module jsCommon {
         const DocumentBody: string;
         const Anchor: string;
         const EditableTextElements: string;
+        const EditableNumericElements: string;
         /**
          * DOM Attributes and values.
          */
@@ -82,8 +88,11 @@ declare module jsCommon {
         const inputAndSelectEventNames: string;
     }
 }
+
 declare module powerbi {
     import IStringResourceProvider = jsCommon.IStringResourceProvider;
+    const RS_AccessDeniedDueToRLSGroup: string;
+    const RS_CannotRetrieveModel: string;
     interface ServiceError {
         statusCode: number;
         /**
@@ -136,14 +145,16 @@ declare module powerbi {
     class PowerBIErrorDetailHelper {
         private static serverErrorPrefix;
         static addAdditionalInfo(errorDetails: ErrorDetails, pbiErrorDetails: PowerBIErrorDetail[], localize: IStringResourceProvider): ErrorDetails;
-        static addMessageAndStackTrace(errorDetails: ErrorDetails, message: string, stackTrace: string, localize: IStringResourceProvider): ErrorDetails;
+        static addDebugErrorInfo(errorDetails: ErrorDetails, errorCode: string, message: string, stackTrace: string): ErrorDetails;
         static GetDetailsFromTransformError(localize: IStringResourceProvider, serviceError: ServiceError): ErrorDetails;
-        static GetDetailsFromServerErrorStatusCode(localize: IStringResourceProvider, statusCode: number): ErrorDetails;
+        static GetDetailsFromServerError(localize: IStringResourceProvider, serviceError: ServiceError): ErrorDetails;
     }
 }
+
 declare module powerbi {
     let build: any;
 }
+
 declare module powerbi {
     const CategoryTypes: {
         Address: string;
@@ -237,6 +248,7 @@ declare module powerbi {
     }
 }
 declare var DEBUG: boolean;
+
 declare module powerbi {
     import IStringResourceProvider = jsCommon.IStringResourceProvider;
     interface ILocalizableError {
@@ -252,9 +264,26 @@ declare module powerbi {
         code: string;
         columnNameFromIndex: (index: number) => string;
     }
-    class UnknownClientError implements IClientError {
+    /**
+     * Unlocalized strings to be used for error reporting.
+     */
+    module ClientErrorStrings {
+        const ClientErrorCode: string;
+        const ErrorCode: string;
+        const ErrorDetails: string;
+        const HttpRequestId: string;
+        const JobId: string;
+        const ODataErrorMessage: string;
+        const StackTrace: string;
+    }
+    /**
+     this base class should be derived to give a generic error message but with a unique error code.
+     */
+    abstract class UnknownClientError implements IClientError {
+        private errorCode;
         code: string;
         ignorable: boolean;
+        constructor(code: string);
         getDetails(resourceProvider: IStringResourceProvider): ErrorDetails;
     }
     class HttpClientError implements IClientError {
@@ -272,6 +301,7 @@ declare module powerbi {
         getDetails(resourceProvider: IStringResourceProvider): ErrorDetails;
     }
 }
+
 declare module jsCommon {
     interface ArrayIdItems<T> extends Array<T> {
         withId(id: number): T;
@@ -340,14 +370,27 @@ declare module jsCommon {
         function findItemWithName<T>(array: T[], name: string): T;
         function indexWithName<T>(array: T[], name: string): number;
         /**
+         * Inserts a number in sorted order into a list of numbers already in sorted order.
+         * @returns True if the item was added, false if it already existed.
+         */
+        function insertSorted(list: number[], value: number): boolean;
+        /**
+         * Removes the first occurrence of a value from a list if it exists.
+         * @returns True if the value was removed, false if it did not exist in the list.
+         */
+        function removeFirst<T>(list: T[], value: T): boolean;
+        /**
          * Deletes all items from the array.
          */
         function clear(array: any[]): void;
         function isUndefinedOrEmpty(array: any[]): boolean;
         function swap<T>(array: T[], firstIndex: number, secondIndex: number): void;
         function isInArray<T>(array: T[], lookupItem: T, compareCallback: (item1: T, item2: T) => boolean): boolean;
+        /** Checks if the given object is an Array, and looking all the way up the prototype chain. */
+        function isArrayOrInheritedArray(obj: {}): obj is Array<any>;
     }
 }
+
 declare module InJs {
     module DomFactory {
         function div(): JQuery;
@@ -362,6 +405,7 @@ declare module InJs {
         function iframe(): JQuery;
     }
 }
+
 declare module powerbi {
     /**
      * Module Double contains a set of constants and precision based utility methods
@@ -510,6 +554,7 @@ declare module powerbi {
         function toIncrement(value: number, increment: number): number;
     }
 }
+
 declare module jsCommon {
     module Color {
         function rotate(rgbString: string, rotateFactor: number): string;
@@ -526,6 +571,7 @@ declare module jsCommon {
         }
     }
 }
+
 declare module jsCommon {
     /**
      * CSS constants.
@@ -643,6 +689,7 @@ declare module jsCommon {
         webkitTransform: string;
     }
 }
+
 /**
  * Defines a Debug object. Calls to any functions in this object removed by the minifier.
  * The functions within this class are not minified away, so we use the preprocessor-style
@@ -671,6 +718,7 @@ declare module debug {
     function assertAnyValue<T>(value: T, message: string): void;
     function assertFail(message: string): void;
 }
+
 declare module jsCommon {
     interface IError extends Error {
         stack?: string;
@@ -707,6 +755,7 @@ declare module jsCommon {
         const VisibleSelector: string;
     }
 }
+
 declare module jsCommon {
     /**
      * Represents a lazily instantiated value.
@@ -718,6 +767,7 @@ declare module jsCommon {
         getValue(): T;
     }
 }
+
 declare module powerbi {
     module Prototype {
         /**
@@ -737,22 +787,62 @@ declare module powerbi {
         function overrideArray<T, TArray>(prototype: TArray, override: (T) => T): TArray;
     }
 }
-interface ScriptErrorInfo {
-    message: string;
-    sourceUrl: string;
-    lineNumber: number;
-    columnNumber: number;
-    stack: string;
+
+declare module powerbi {
+    interface ScriptErrorInfo {
+        message: string;
+        sourceUrl: string;
+        lineNumber: number;
+        columnNumber: number;
+        stack: string;
+    }
+    interface ErrorInfoKeyValuePair {
+        errorInfoKey: string;
+        errorInfoValue: string;
+    }
+    const enum ErrorType {
+        VisualNotSupported = 1,
+    }
+    interface ErrorDetails {
+        message: string;
+        displayableErrorInfo: ErrorInfoKeyValuePair[];
+        /**
+         * This is a collection of unlocalized properties that could be used for error reporting.
+         * These should not be displayed to the user.
+         */
+        debugErrorInfo?: ErrorInfoKeyValuePair[];
+        helpLink?: string;
+        errorType?: ErrorType;
+    }
 }
-interface ErrorInfoKeyValuePair {
-    errorInfoKey: string;
-    errorInfoValue: string;
+
+declare module powerbi.visuals {
+    module shapes {
+        interface IPolygon {
+            absoluteCentroid: IPoint;
+            polygonPoints: IPoint[];
+        }
+        interface IPoint {
+            x: number;
+            y: number;
+        }
+        interface ISize {
+            width: number;
+            height: number;
+        }
+        interface IVector {
+            x: number;
+            y: number;
+        }
+        interface IThickness {
+            top: number;
+            left: number;
+            right: number;
+            bottom: number;
+        }
+    }
 }
-interface ErrorDetails {
-    message: string;
-    additionalErrorInfo: ErrorInfoKeyValuePair[];
-    helpLink?: string;
-}
+
 declare module jsCommon {
     module Formatting {
         /**
@@ -768,6 +858,7 @@ declare module jsCommon {
         function fixDateTimeFormat(format: string): string;
     }
 }
+
 declare module jsCommon {
     /**
      * Public API.
@@ -783,9 +874,11 @@ declare module jsCommon {
     }
     function requires(dependency: IDependency, to?: () => void): void;
 }
+
 declare module powerbi {
     function createJQueryPromiseFactory(): IPromiseFactory;
 }
+
 declare module powerbi {
     interface IStorageService {
         getData(key: string): any;
@@ -804,6 +897,7 @@ declare module powerbi {
     var localStorageService: IStorageService;
     const ephemeralStorageService: IStorageService;
 }
+
 declare module jsCommon {
     module WordBreaker {
         import TextProperties = powerbi.TextProperties;
@@ -846,6 +940,7 @@ declare module jsCommon {
         function splitByWidth(content: string, properties: TextProperties, textWidthMeasurer: ITextAsSVGMeasurer, maxWidth: number, maxNumLines: number, truncator?: ITextTruncator): string[];
     }
 }
+
 declare module powerbi {
     interface ITextMeasurer {
         (textElement: SVGTextElement): number;
@@ -862,6 +957,7 @@ declare module powerbi {
         fontSize: string;
         fontWeight?: string;
         fontStyle?: string;
+        fontVariant?: string;
         whiteSpace?: string;
     }
     module TextMeasurementService {
@@ -919,7 +1015,7 @@ declare module powerbi {
          * @param textProperties The text properties (including text content) to use for text measurement.
          * @param maxWidth The maximum width available for rendering the text.
          */
-        function getTailoredTextOrDefault(properties: TextProperties, maxWidth: number): string;
+        function getTailoredTextOrDefault(textProperties: TextProperties, maxWidth: number): string;
         /**
          * Compares labels text size to the available size and renders ellipses when the available size is smaller.
          * @param textElement The SVGTextElement containing the text to render.
@@ -946,6 +1042,15 @@ declare module powerbi {
         function wordBreakOverflowingText(textElement: any, maxWidth: number, maxHeight: number, linePadding?: number): void;
     }
 }
+
+declare module jsCommon {
+    module KeyUtils {
+        function isArrowKey(keyCode: number): boolean;
+        function isCtrlDefaultKey(keyCode: number): boolean;
+        function isNudgeModifierKey(keyCode: number): boolean;
+    }
+}
+
 declare module jsCommon {
     /**
      * Responsible for throttling input function.
@@ -962,6 +1067,7 @@ declare module jsCommon {
         timerComplete(fn: () => void): void;
     }
 }
+
 declare module jsCommon {
     interface ITimerPromiseFactory {
         /**
@@ -979,13 +1085,6 @@ declare module jsCommon {
          * {@inheritDoc}
          */
         create(delayInMs: number): IRejectablePromise;
-    }
-}
-declare module jsCommon {
-    module UrlUtils {
-        function isValidUrl(value: string): boolean;
-        function isValidImageUrl(url: string): boolean;
-        function findAllValidUrls(text: string): TextMatch[];
     }
 }
 /**
@@ -1288,6 +1387,7 @@ declare module jsCommon {
          * Verifies image data url of images.
          */
         static isValidImageDataUrl(url: string): boolean;
+        static isLocalUrl(url: string): boolean;
         /**
          * Downloads a content string as a file.
          * @param content Content stream.
@@ -1370,6 +1470,7 @@ declare module jsCommon {
         function deferUntilNextFrame(callback: Function): Function;
     }
 }
+
 declare module jsCommon {
     class TraceItem {
         type: TraceType;
@@ -1386,6 +1487,28 @@ declare module jsCommon {
         toString(): string;
     }
 }
+
+declare module jsCommon {
+    module UrlUtils {
+        function isValidUrl(value: string): boolean;
+        function isValidImageUrl(url: string): boolean;
+        function findAllValidUrls(text: string): TextMatch[];
+        function getBase64ContentFromDataUri(uri: string): string;
+    }
+}
+
+declare module jsCommon {
+    module BrowserUtils {
+        function isChrome(): boolean;
+        function isInternetExplorerOrEdge(): boolean;
+        /**
+         * Get the current version of IE
+         * @returns The version of Internet Explorer or a 0 (indicating the use of another browser).
+         */
+        function getInternetExplorerVersion(): number;
+    }
+}
+
 declare module jsCommon {
     /**
      * Interface to help define objects indexed by number to a particular type.
@@ -1495,6 +1618,16 @@ declare module jsCommon {
         function run(regex: RegExp, value: string, start?: number): RegExpExecArray;
     }
 }
+
+declare module powerbi.visuals.utility {
+    import IThickness = powerbi.visuals.shapes.IThickness;
+    module StyleUtils {
+        function getRotateAngleFromElement(element: JQuery): number;
+        function getTranslateTransformFromElement(element: JQuery): IPoint;
+        function getPadding(element: JQuery): IThickness;
+    }
+}
+
 declare module jsCommon {
     interface ITraceListener {
         logTrace(trace: TraceItem): void;
@@ -1527,6 +1660,7 @@ declare module jsCommon {
         function enableDefaultListener(): void;
     }
 }
+
 declare module jsCommon {
     /**
      * The types of possible traces within the system, this aligns to the traces available in Cloud Platform.
@@ -1541,13 +1675,15 @@ declare module jsCommon {
         Fatal = 6,
     }
 }
+
 declare module jsCommon {
     function ensurePowerView(action?: () => void): void;
     function ensureMap(locale: string, action: () => void): void;
     function mapControlLoaded(): void;
     function waitForMapControlLoaded(): JQueryPromise<void>;
 }
-declare let globalMapControlLoaded: () => void;
+declare let globalMapControlLoaded: Function;
+
 declare module InJs {
     /**
      * The types of possible traces within the system, this aligns to the traces available in Cloud Platform.

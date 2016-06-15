@@ -24,7 +24,7 @@
  *  THE SOFTWARE.
  */
 
-
+/// <reference path="../_references.ts"/>
 
 module powerbitests {
     import UrlUtils = jsCommon.UrlUtils;
@@ -83,6 +83,52 @@ module powerbitests {
         });
     });
 
+    describe("UrlUtils isValidImageUrl", () => {
+        it("isValidImageUrl null", () => {
+            expect(UrlUtils.isValidImageUrl(null)).toBe(false);
+        });
+
+        it("isValidImageUrl empty string", () => {
+            expect(UrlUtils.isValidImageUrl("")).toBe(false);
+        });
+
+        it("isValidImageUrl http direct link", () => {
+            expect(UrlUtils.isValidImageUrl("http://www.microsoft.com/img.jpg")).toBe(true);
+        });
+
+        it("isValidImageUrl https direct link", () => {
+            expect(UrlUtils.isValidImageUrl("https://www.microsoft.com/img.jpg")).toBe(true);
+        });
+
+        it("isValidImageUrl http non-direct link", () => {
+            expect(UrlUtils.isValidImageUrl("http://www.microsoft.com/image")).toBe(true);
+        });
+
+        it("isValidImageUrl https direct link", () => {
+            expect(UrlUtils.isValidImageUrl("https://www.microsoft.com/image")).toBe(true);
+        });
+
+        it("isValidImageUrl dataUri", () => {
+            expect(UrlUtils.isValidImageUrl("data://www.microsoft.com")).toBe(false);
+        });
+
+        it("isValidImageUrl url after text", () => {
+            expect(UrlUtils.isValidImageUrl('foo https://www.bing.com')).toBe(false);
+        });
+
+        it("isValidImageUrl url without protocol", () => {
+            expect(UrlUtils.isValidImageUrl('www.bing.com')).toBe(false);
+        });
+
+        it("isValidImageUrl ftp url", () => {
+            expect(UrlUtils.isValidImageUrl('ftp://www.bing.com')).toBe(false);
+        });
+
+        it("isValidImageUrl invalid url", (done) => {
+            expect(UrlUtils.isValidImageUrl("ABC123")).toBe(false);
+            done();
+        });
+    });
 
     describe("UrlUtils.findAllValidUrls tests", () => {
         it("null string", () => {
@@ -134,4 +180,17 @@ module powerbitests {
         });
     });
 
+    describe("UrlUtils.getBase64ContentFromDataUri tests", () => {
+        it("Valid URI", () => {
+            expect(UrlUtils.getBase64ContentFromDataUri('data:image/jpeg;base64,12345=')).toEqual('12345=');
+        });
+
+        it("Non data URI", () => {
+            expect(() => UrlUtils.getBase64ContentFromDataUri('not a data uri')).toThrowError();
+        });
+
+        it("No base 64 content", () => {
+            expect(() => UrlUtils.getBase64ContentFromDataUri('data:image/png')).toThrowError();
+        });
+    });
 }

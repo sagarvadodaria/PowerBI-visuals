@@ -43,6 +43,33 @@ module powerbi.visuals {
     export module ComboChart {
         export const capabilities = comboChartCapabilities;
 
+        /**
+         * Handles the case of a column layer in a combo chart. In this case, the column layer is enumearated last.
+         */
+        export function enumerateDataPoints(enumeration: ObjectEnumerationBuilder, options: EnumerateVisualObjectInstancesOptions, layers: ICartesianVisual[]): void {
+            if (!layers)
+                return;
+
+            let columnChartLayerIndex: number;
+            let layersLength: number = layers.length;
+
+            for (let layerIndex = 0; layerIndex < layersLength; layerIndex++) {
+                let layer = layers[layerIndex];
+
+                if (layer.enumerateObjectInstances) {
+                    if (layer instanceof ColumnChart) {
+                        columnChartLayerIndex = layerIndex;
+                        continue;
+                    }
+
+                    layer.enumerateObjectInstances(enumeration, options);
+                }
+            }
+
+            if (columnChartLayerIndex !== undefined)
+                layers[columnChartLayerIndex].enumerateObjectInstances(enumeration, options);
+        }
+
         export function customizeQuery(options: CustomizeQueryOptions): void {
             // If there is a dynamic series but no values on the column data view mapping, remove the dynamic series
             let columnMapping = !_.isEmpty(options.dataViewMappings) && options.dataViewMappings[0];
@@ -53,13 +80,29 @@ module powerbi.visuals {
                     columnValuesMapping.group.by.items = undefined;
             }
             
+            let isScalar = CartesianChart.detectScalarMapping(columnMapping);
+
             if (columnMapping && columnMapping.categorical) {
                 columnMapping.categorical.dataVolume = 4;
+                if (isScalar) {
+                    let dataViewCategories = <data.CompiledDataViewRoleForMappingWithReduction>columnMapping.categorical.categories;
+                    dataViewCategories.dataReductionAlgorithm = { sample: {} };
+                }
+                else {
+                    CartesianChart.applyLoadMoreEnabledToMapping(options.cartesianLoadMoreEnabled, columnMapping);    
+                }
             }
-            
+
             let lineMapping = options.dataViewMappings.length > 1 && options.dataViewMappings[1];
             if (lineMapping && lineMapping.categorical) {
                 lineMapping.categorical.dataVolume = 4;
+                if (isScalar) {
+                    let dataViewCategories = <data.CompiledDataViewRoleForMappingWithReduction>lineMapping.categorical.categories;
+                    dataViewCategories.dataReductionAlgorithm = { sample: {} };
+                }
+                else {
+                    CartesianChart.applyLoadMoreEnabledToMapping(options.cartesianLoadMoreEnabled, lineMapping);
+                }
             }
         }
 

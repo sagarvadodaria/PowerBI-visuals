@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Power BI Visualizations
  *
  *  Copyright (c) Microsoft Corporation
@@ -23,6 +23,8 @@
  *  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  *  THE SOFTWARE.
  */
+
+/// <reference path="../_references.ts"/>
 
 module powerbi.data {
     import DataViewTransform = powerbi.data.DataViewTransform;
@@ -89,15 +91,17 @@ module powerbi.data {
 
     class CategoricalDataViewBuilder implements IDataViewBuilderCategorical {
         private categories: DataViewCategoryColumn[];
-        private measureColumns: DataViewMetadataColumn[];
-        private hasDynamicSeries: boolean;
+        private staticMeasureColumns: DataViewMetadataColumn[];
+        private dynamicMeasureColumns: DataViewMetadataColumn[];
         private dynamicSeriesMetadata: ColumnMetadata;
         private columnIndex: number;
-        private data: DataViewBuilderValuesColumnOptions[]| DataViewBuilderSeriesData[][];
+        private staticSeriesValues: DataViewBuilderValuesColumnOptions[];
+        private dynamicSeriesValues: DataViewBuilderSeriesData[][];
 
         constructor() {
             this.categories = [];
-            this.measureColumns = [];
+            this.staticMeasureColumns = [];
+            this.dynamicMeasureColumns = [];
             this.columnIndex = 0;
         }
 
@@ -137,6 +141,12 @@ module powerbi.data {
             return this;
         }
 
+        /**
+         * Adds static series columns.
+         *
+         * Note that it is illegal to have both dynamic series and static series in a visual DataViewCategorical.  It is only legal to have them both in 
+         * a query DataViewCategorical, where DataViewTransform is expected to split them up into separate visual DataViewCategorical objects.
+         */
         public withValues(options: DataViewBuilderValuesOptions): IDataViewBuilderCategorical {
             debug.assertValue(options, 'options');
 
@@ -144,18 +154,22 @@ module powerbi.data {
             debug.assertValue(columns, 'columns');
 
             for (let column of columns) {
-                this.measureColumns.push(column.source);
+                this.staticMeasureColumns.push(column.source);
             }
 
-            this.data = columns;
+            this.staticSeriesValues = columns;
 
             return this;
         }
 
+        /**
+         * Adds dynamic series columns.
+         *
+         * Note that it is illegal to have both dynamic series and static series in a visual DataViewCategorical.  It is only legal to have them both in 
+         * a query DataViewCategorical, where DataViewTransform is expected to split them up into separate visual DataViewCategorical objects.
+         */
         public withGroupedValues(options: DataViewBuilderGroupedValuesOptions): IDataViewBuilderCategorical {
             debug.assertValue(options, 'options');
-
-            this.hasDynamicSeries = true;
 
             let groupColumn = options.groupColumn;
             debug.assertValue(groupColumn, 'groupColumn');
@@ -168,45 +182,48 @@ module powerbi.data {
 
             let valueColumns = options.valueColumns;
             for (let valueColumn of valueColumns) {
-                this.measureColumns.push(valueColumn.source);
+                this.dynamicMeasureColumns.push(valueColumn.source);
             }
 
-            this.data = options.data;
+            this.dynamicSeriesValues = options.data;
 
             return this;
         }
 
-        private fillData(dataViewValues: DataViewValueColumns, groups: DataViewMetadataColumn[]) {
+        private fillData(dataViewValues: DataViewValueColumns) {
             let categoryColumn = _.first(this.categories);
-            let categoryLength = (categoryColumn && categoryColumn.values) ? categoryColumn.values.length : 1;
+            let categoryLength = (categoryColumn && categoryColumn.values) ? categoryColumn.values.length : 0;
 
-            if (this.hasDynamicSeries) {
-                // Dynamic series
-                let data = <DataViewBuilderSeriesData[][]>this.data;
+            if (this.hasDynamicSeries()) {
                 for (let seriesIndex = 0; seriesIndex < this.dynamicSeriesMetadata.values.length; seriesIndex++) {
-                    let seriesMeasures = data[seriesIndex];
-                    debug.assert(seriesMeasures.length === this.measureColumns.length, 'seriesMeasures.length === this.measureColumns.length');
+                    let seriesMeasures = this.dynamicSeriesValues[seriesIndex];
+                    debug.assert(seriesMeasures.length === this.dynamicMeasureColumns.length, 'seriesMeasures.length === this.dynamicMeasureColumns.length');
 
-                    for (let measureIndex = 0, measuresLen = this.measureColumns.length; measureIndex < measuresLen; measureIndex++) {
+                    for (let measureIndex = 0, measuresLen = this.dynamicMeasureColumns.length; measureIndex < measuresLen; measureIndex++) {
                         let groupIndex = seriesIndex * measuresLen + measureIndex;
 
                         applySeriesData(dataViewValues[groupIndex], seriesMeasures[measureIndex], categoryLength);
                     }
                 }
             }
-            else {
-                // Static series
-                let data = <DataViewBuilderValuesColumnOptions[]>this.data;
-                for (let measureIndex = 0, measuresLen = this.measureColumns.length; measureIndex < measuresLen; measureIndex++) {
-                    applySeriesData(dataViewValues[measureIndex], data[measureIndex], categoryLength);
+
+            if (this.hasStaticSeries()) {
+                // Note: when the target categorical has both dynamic and static series, append static measures at the end of the values array.
+                let staticColumnsStartingIndex = this.hasDynamicSeries() ? (this.dynamicSeriesValues.length * this.dynamicMeasureColumns.length) : 0;
+
+                for (let measureIndex = 0, measuresLen = this.staticMeasureColumns.length; measureIndex < measuresLen; measureIndex++) {
+                    applySeriesData(dataViewValues[staticColumnsStartingIndex + measureIndex], this.staticSeriesValues[measureIndex], categoryLength);
                 }
             }
         }
 
+        /**
+         * Returns the DataView with metadata and DataViewCategorical.
+         * Returns undefined if the combination of parameters is illegal, such as having both dynamic series and static series when building a visual DataView.
+         */
         public build(): DataView {
             let metadataColumns: DataViewMetadataColumn[] = [];
             let categorical: DataViewCategorical = {};
-            let groups: DataViewMetadataColumn[];
 
             let categoryMetadata = this.categories;
             let dynamicSeriesMetadata = this.dynamicSeriesMetadata;
@@ -216,16 +233,11 @@ module powerbi.data {
                 pushIfNotExists(metadataColumns, columnMetadata.source);
             }
 
-            if (this.hasDynamicSeries) {
+            if (this.hasDynamicSeries()) {
+                // Dynamic series, or Dyanmic & Static series.
                 pushIfNotExists(metadataColumns, dynamicSeriesMetadata.column);
-            }
 
-            if (this.hasDynamicSeries) {
-                // Dynamic series
                 categorical.values = DataViewTransform.createValueColumns([], dynamicSeriesMetadata.identityFrom.fields, dynamicSeriesMetadata.column);
-
-                let measures = this.measureColumns;
-                groups = [];
 
                 // For each series value we will make one column per measure
                 let seriesValues = dynamicSeriesMetadata.values;
@@ -233,10 +245,14 @@ module powerbi.data {
                     let seriesValue = seriesValues[seriesIndex];
                     let seriesIdentity = getScopeIdentity(dynamicSeriesMetadata.identityFrom, seriesIndex, seriesValue, dynamicSeriesMetadata.column.type);
 
-                    for (let measure of measures) {
-                        let column = _.clone(measure);
+                    for (let measure of this.dynamicMeasureColumns) {
+
+                        // Note related to VSTS 7705322: It is possible that the 'measure' object is part of visual DataView with prototypal inheritance,
+                        // in which case _.clone() would not copy any inherited properties. Meanwhile, this builder class can also be used for building
+                        // query DataView, hence this code should not produce an inherited object from 'measure'.
+                        let column = _.toPlainObject<DataViewMetadataColumn>(measure);
+
                         column.groupName = <string>seriesValue;
-                        groups.push(column);
 
                         pushIfNotExists(metadataColumns, column);
                         categorical.values.push({
@@ -246,19 +262,21 @@ module powerbi.data {
                         });
                     }
                 }
+
+                if (this.hasStaticSeries()) {
+                    // IMPORTANT: In the Dyanmic & Static series case, the groups array shall not include any static group. This is to match the behavior of production code that creates query DataView objects.
+                    // Get the current return value of grouped() before adding static measure columns, an use that as the return value of this categorical.
+                    // Otherwise, the default behavior of DataViewValueColumns.grouped() from DataViewTransform.createValueColumns() is to create series groups from all measure columns.
+                    let dynamicSeriesGroups = categorical.values.grouped();
+                    categorical.values.grouped = () => dynamicSeriesGroups;
+
+                    this.appendStaticMeasureColumns(metadataColumns, categorical.values);
+                }
             }
             else {
-                // Static series / no series
+                // Static series only / no series
                 categorical.values = DataViewTransform.createValueColumns();
-                groups = this.measureColumns;
-                for (let measure of groups) {
-                    let column = measure;
-                    pushIfNotExists(metadataColumns, column);
-                    categorical.values.push({
-                        source: column,
-                        values: [],
-                    });
-                }
+                this.appendStaticMeasureColumns(metadataColumns, categorical.values);
             }
 
             let categories = this.categories;
@@ -266,14 +284,62 @@ module powerbi.data {
                 categorical.categories = categories;
 
             // --- Fill in data point values ---
-            this.fillData(categorical.values, groups);
+            this.fillData(categorical.values);
 
-            return {
+            let dataView: DataView = {
                 metadata: {
                     columns: metadataColumns,
                 },
                 categorical: categorical,
             };
+
+            if (this.isLegalDataView(dataView)) {
+                return dataView;
+            }
+        }
+
+        private appendStaticMeasureColumns(metadataColumns: DataViewMetadataColumn[], valueColumns: DataViewValueColumns): void {
+            debug.assertValue(metadataColumns, 'metadataColumns');
+            debug.assertValue(valueColumns, 'valueColumns');
+
+            if (!_.isEmpty(this.staticMeasureColumns)) {
+                for (let column of this.staticMeasureColumns) {
+                    pushIfNotExists(metadataColumns, column);
+                    valueColumns.push({
+                        source: column,
+                        values: [],
+                    });
+                }
+            }
+        }
+
+        private isLegalDataView(dataView: DataView): boolean {
+            if (this.hasDynamicSeries() && this.hasStaticSeries() && CategoricalDataViewBuilder.isVisualDataView(dataView.metadata.columns)) {
+                // It is illegal to have both dynamic series and static series in a visual DataViewCategorical,
+                // because the DataViewValueColumns interface today cannot express that 100% (see its 'source' property and return value of its 'grouped()' function).
+                return false;
+            }
+
+            return true;
+        }
+
+        /**
+         * This function infers that if any metadata column has 'queryName', 
+         * then the user of this builder is building a visual DataView (as opposed to query DataView).
+         *
+         * @param metadataColumns The complete collection of metadata columns in the categorical.
+         */
+        private static isVisualDataView(metadataColumns: DataViewMetadataColumn[]): boolean {
+            return !_.isEmpty(metadataColumns) &&
+                _.any(metadataColumns, (metadataColumn) => !!metadataColumn.queryName);
+        }
+
+        private hasDynamicSeries(): boolean {
+            return !!this.dynamicSeriesMetadata; // In Map visual scenarios, you can have dynamic series without measure columns
+        }
+
+        private hasStaticSeries(): boolean {
+            return !!this.staticSeriesValues;
         }
     }
 
@@ -308,7 +374,7 @@ module powerbi.data {
         debug.assertValue(categoryLength, 'categoryLength');
 
         let values = source.values;
-        debug.assert(categoryLength === values.length, 'categoryLength === values.length');
+        debug.assert(categoryLength === values.length || categoryLength === 0, 'categoryLength === values.length || categoryLength === 0');
 
         target.values = values;
 
@@ -319,10 +385,24 @@ module powerbi.data {
             target.highlights = highlights;
         }
 
-        if (source.minLocal !== undefined)
-            target.minLocal = source.minLocal;
+        let aggregates: DataViewColumnAggregates;
+        if (source.minLocal !== undefined) {
+            if (!aggregates)
+                aggregates = {};
 
-        if (source.maxLocal !== undefined)
-            target.maxLocal = source.maxLocal;
+            aggregates.minLocal = source.minLocal;
+        }
+
+        if (source.maxLocal !== undefined) {
+            if (!aggregates)
+                aggregates = {};
+
+            aggregates.maxLocal = source.maxLocal;
+        }
+
+        if (aggregates) {
+            target.source.aggregates = aggregates;
+            _.extend(target, aggregates);
+        }
     }
 }

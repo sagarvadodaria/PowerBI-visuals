@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Power BI Visualizations
  *
  *  Copyright (c) Microsoft Corporation
@@ -41,14 +41,10 @@ module powerbi.visuals {
             let dots = this.dots = options.dots;
             let dotLabels = options.dotLabels;
 
-            dots.on('click', (d: SelectableDataPoint) => {
-                selectionHandler.handleSelection(d, d3.event.ctrlKey);
-            });
+            InteractivityUtils.registerStandardInteractivityHandlers(dots, selectionHandler);
 
             if (dotLabels) {
-                dotLabels.on('click', (d: SelectableDataPoint) => {
-                    selectionHandler.handleSelection(d, d3.event.ctrlKey);
-                });
+                InteractivityUtils.registerStandardInteractivityHandlers(dotLabels, selectionHandler);
             }
         }
 

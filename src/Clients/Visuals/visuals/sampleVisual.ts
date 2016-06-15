@@ -1,4 +1,4 @@
-﻿/*
+/*
 *  Power BI Visualizations
 *
 *  Copyright (c) Microsoft Corporation
@@ -23,9 +23,9 @@
 *  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 *  THE SOFTWARE.
 */
- 
+
 /// <reference path="../_references.ts"/>
- 
+
 module powerbi.visuals {
 import SelectionManager = utility.SelectionManager;
 
@@ -67,6 +67,7 @@ export const cheerMeterProps = {
         public static capabilities: VisualCapabilities = {
             dataRoles: [
                 {
+                    displayName: 'Category',
                     name: 'Category',
                     kind: powerbi.VisualDataRoleKind.Grouping,
                 },

@@ -24,7 +24,7 @@
  *  THE SOFTWARE.
  */
 
-
+/// <reference path="../_references.ts"/>
 
 module powerbitests {
     import KPIStatusWithHistory = powerbi.visuals.KPIStatusWithHistory;
@@ -56,6 +56,12 @@ module powerbitests {
                 dataViews: [object],
             };
         };
+
+        function getGoalFromGoalText(goal: string) {
+            let startIndex = goal.indexOf(": ") + 2;
+            let endIndex = goal.indexOf(" (");
+            return goal.slice(startIndex, endIndex); 
+        }
 
         describe("", () => {
             let host: IVisualHostServices;
@@ -229,8 +235,58 @@ module powerbitests {
                     helpers.assertColorsMatch(text.css('color'), "#F2C811");
                     expect(text.text()).toBe("12.00");
                 });
+
+                it("Show indicator percentage with selected precision (decimal places)", () => {
+                    let visualUpdateOptions = buildUpdateOptions(viewport, kpiHelper.buildDataViewForGreenTrendWithPercentages());
+                    kpi.update(visualUpdateOptions);
+
+                    let indicatorText = $element.find('#indicatorText').text();
+                    expect(indicatorText).toBe("78.12346%");
+                });
+
+                it("Show goal percentage not influenced by selected precision (decimal places) for indicator", () => {
+                    let visualUpdateOptions = buildUpdateOptions(viewport, kpiHelper.buildDataViewForGreenTrendWithPercentages());
+                    kpi.update(visualUpdateOptions);
+
+                    let goalText = $element.find('.goalText').text();
+                    let decimalPlacesFound = goalText.indexOf('%') - goalText.indexOf('.') - 1;
+                    expect(decimalPlacesFound).toBe(2);
+                });
+
+                it("Formats indicator as percentage but goal as decimal", () => {
+                    let visualUpdateOptions = buildUpdateOptions(viewport, kpiHelper.buildDataViewForPercentagesIndicator());
+                    kpi.update(visualUpdateOptions);
+
+                    let indicatorText = $element.find('#indicatorText').text();
+                    expect(indicatorText).toBe("78.12%");
+
+                    let goalText = $element.find('.goalText').text();
+                    goalText = getGoalFromGoalText(goalText);
+                    expect(goalText).toBe("20.00");
+                });
+
+                it("Formats indicator as decimal but goal as percentage", () => {
+                    let visualUpdateOptions = buildUpdateOptions(viewport, kpiHelper.buildDataViewForPercentagesGoal());
+                    kpi.update(visualUpdateOptions);
+
+                    let indicatorText = $element.find('#indicatorText').text();
+                    expect(indicatorText).toBe("12.00");
+
+                    let goalText = $element.find('.goalText').text();
+                    goalText = getGoalFromGoalText(goalText);
+                    expect(goalText).toBe("72.12%");
+                });
+
+                it("Show only indicator vs goal when trend axis contains single value", () => {
+                    let visualUpdateOptions = buildUpdateOptions(viewport, kpiHelper.buildDataViewForRedTrendWithSingleCategory());
+                    kpi.update(visualUpdateOptions);
+
+                    let textContainer = $element.find('.textContainer');
+                    let trendLine = $element.find('.kpiVisual path');
+                    expect(textContainer.css('display')).toBe('block');
+                    expect(trendLine.css('visibility')).toBe('hidden');
+                });
             });
         });
     });
 }
-        

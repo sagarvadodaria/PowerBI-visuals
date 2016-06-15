@@ -24,7 +24,7 @@
  *  THE SOFTWARE.
  */
 
-
+/// <reference path="../_references.ts"/>
 
 module powerbitests.slicerHelper {
     import SlicerOrientation = powerbi.visuals.slicerOrientation.Orientation;
@@ -56,7 +56,9 @@ module powerbitests.slicerHelper {
     export function initSlicer(element: JQuery, options: RenderSlicerOptions, field: SQExpr): powerbi.IVisual {
         let viewport = options.viewport ? options.viewport : { height: element.height(), width: element.width() };
         let dataView = options.dataView ? options.dataView : buildDefaultDataView(field);
-        let visual = powerbi.visuals.visualPluginFactory.createMinerva({}).getPlugin(SlicerVisual).create();
+        let visual = new powerbi.visuals.Slicer({
+            behavior: new powerbi.visuals.SlicerWebBehavior()
+        });
 
         visual.init({
             element: element,
@@ -101,6 +103,17 @@ module powerbitests.slicerHelper {
             categorical: dataViewCategorical
         };
 
+        return dataView;
+    }
+
+    export function buildDataViewWithSelfFilter(orientation: SlicerOrientation, field: SQExpr): powerbi.DataView {
+        let dataViewMetadata: powerbi.DataViewMetadata = buildDefaultDataViewMetadata();
+        let dataViewCategorical: powerbi.DataViewCategorical = buildDefaultDataViewCategorical(field);
+        let dataView: powerbi.DataView = {
+            metadata: dataViewMetadata,
+            categorical: dataViewCategorical
+        };
+        dataView.metadata.objects = buildDefaultDataViewObjects(orientation, true, false, true);
         return dataView;
     }
 
@@ -155,10 +168,11 @@ module powerbitests.slicerHelper {
         return dataView;
     }
 
-    export function buildDefaultDataViewObjects(orientation?: SlicerOrientation, selectAllCheckboxEnabled: boolean = true, singleSelect: boolean = false): powerbi.DataViewObjects {
+    export function buildDefaultDataViewObjects(orientation?: SlicerOrientation, selectAllCheckboxEnabled: boolean = true, singleSelect: boolean = false, selfFilterEnabled: boolean = false): powerbi.DataViewObjects {
         return {
             general: {
                 orientation: orientation ? orientation : SlicerOrientation.Vertical,
+                selfFilterEnabled: selfFilterEnabled,
             },
             selection: {
                 selectAllCheckboxEnabled: selectAllCheckboxEnabled,
@@ -397,7 +411,7 @@ module powerbitests.slicerHelper {
         private originalRequestAnimationFrameCallback: (callback: Function) => number;
 
         constructor(orientation: SlicerOrientation, height: number = 200, width: number = 300) {
-            let element = helpers.testDom(height.toString(), width.toString(), 'visual');
+            let element = helpers.testDom(height.toString(), width.toString());
             this.hostServices = createHostServices();
             let dataView = this.dataView;
             dataView.metadata.objects = buildDefaultDataViewObjects(orientation);

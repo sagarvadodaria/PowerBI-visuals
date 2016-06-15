@@ -16,13 +16,20 @@ The Microsoft Power BI visuals project provides high quality data visualizations
 To build the library and run the sample application you will need:
 
 - [Git](http://git-scm.com/book/en/v2/Getting-Started-Installing-Git#Installing-on-Windows)
-- [Node.js](https://nodejs.org/download/)
-- Recommended IDE - [Visual Studio Community 2015](https://www.visualstudio.com/vs-2015-product-editions) (Free for use)
- -  Be sure to install the "Microsoft Web Developer Tools" optional feature. To install, go to Add/Remove Programs, right-click on Visual Studio, select Change, then Modify. Check the "Microsoft Web Developer Tools" checkbox and finish the install. 
+- [Node.js](https://nodejs.org/en/download) (>= 4.x <= 5.x)
+- Recommended IDE - [Visual Studio Community 2015](https://www.visualstudio.com/vs-2015-product-editions?wt.mc_id=github_microsoft_powerbi-visuals) (Free for use)
+ -  Be sure to install the "Microsoft Web Developer Tools" optional feature. To install, go to Add/Remove Programs, right-click on Visual Studio, select Change, then Modify. Check the "Microsoft Web Developer Tools" checkbox and finish the install.
+ -  Ensure that Visual Studio is not using previous version of Node.js. Go to Tools > Options, then Projects and Solutions > External Web Tools. You can remove old path and add folder with the latest Node.js, or just leave $(PATH) and move it above all folders, if PATH environment variable contains path of the latest Node.js.
  -  You can install [VSIX Package](https://github.com/Microsoft/PowerBI-visuals/blob/master/tools/VSIXExtensions/VisualTemplate.vsix?raw=true) and use Visual Studio Template from it to create new Visual.
 
 ### One-Time Setup
-In order to build the Power BI visuals, ensure that you have [Git](http://git-scm.com/book/en/v2/Getting-Started-Installing-Git#Installing-on-Windows), [Node.js](http://nodejs.org/download/) and gulp (`npm install -g gulp`) installed.
+In order to build the Power BI visuals, ensure that you have [Git](http://git-scm.com/book/en/v2/Getting-Started-Installing-Git#Installing-on-Windows) and [Node.js](https://nodejs.org/en/download) installed.
+
+Install gulp if not present:
+
+```
+npm install -g gulp
+```
 
 Clone a copy of the repo:
 
@@ -39,7 +46,7 @@ cd PowerBI-visuals
 Install dev dependencies:
 
 ```
-npm install  # This command will install all necessary modules
+npm install # This command will install all necessary modules
 ```
 
 ### Running PlayGround from Visual Studio
@@ -48,43 +55,42 @@ Make sure you first follow the [Prerequisites](https://github.com/Microsoft/Powe
 
 To run sample app:
 
-1. Open `src\PowerBIVisuals.sln` in Visual Studio then under `src\Clients\PowerBIVisualsPlayground`, right click on `index.html` file and select 'Set As Start Page'.
+1. Open `src\PowerBIVisuals.sln` in Visual Studio then under `src\Clients\PowerBIVisualsPlayground`, right click on `standalone.html` file and select 'Set As Start Page'.
 
-2. Right click on the project root folder then select 'Property Pages'. In the window opened select 'Build' and then in 'Before running startup page' select 'No Build'.
+2. Right click on the project root folder(PowerBIVisualsPlayground) then select 'Property Pages'. In the window opened select 'Build' and then in 'Before running startup page' select 'No Build'.
 
-3. Task runner should have kicked off an incremental build task, which will build each time you make changes. **NOTE:** Sometimes the task runner might kick off two of these tasks at the same time, just close one of them.
+3. Right click on PowerBIVisualsPlayground and 'Set as Startup Project'
 
-4. Ctrl + F5 to launch the Playground.
+4. Run "build" task from "Task Runner Explorer" window.
+
+5. Ctrl + F5 to launch the Playground.
  
 ### Running PlayGround without Visual Studio
- 
+
 Make sure you first follow the [Prerequisites](https://github.com/Microsoft/PowerBI-visuals#prerequisites) & [Onetime Setup](https://github.com/Microsoft/PowerBI-visuals#one-time-setup)
- 
-To run sample app:
 
-1. Build the project
+Use the following command to run sample app:
 
- ```
- gulp build
- ```
-2. Run gulp task
+```
+gulp playground # Build and run sample app with Webpack dev server (live reload feature)
+```
 
- ```
- gulp run:playground
- ```
- 
+### Building Power BI visuals from command line
+
+Make sure you first follow the [Onetime Setup](https://github.com/Microsoft/PowerBI-visuals#one-time-setup)
+
+Use the following command to build Power BI visuals from command line:
+
+```
+gulp build # Build projects and tests
+```
+
 ### Running Unit Tests
 
-Use the following commands to build and run unit tests:
+Use the following command to build and run unit tests:
 ```
-gulp test  # Build and run unit tests (requires 'PhantomJS', see below)
+gulp test # Build and run unit tests
 ```
-
-### Installing PhantomJS (non-Windows environment only)
-To run unit tests on non-Windows environment you will need to
-install [PhantomJS](http://phantomjs.org/) (PhantomJS is a headless WebKit scriptable with a JavaScript API. It has fast and native support for various web standards: DOM handling, CSS selector, JSON, Canvas, and SVG.).
-
-On Windows PhantomJS is installed automatically as part of `gulp test` command.
 
 ## How to Engage, Contribute and Provide Feedback
 

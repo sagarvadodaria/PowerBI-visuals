@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Power BI Visualizations
  *
  *  Copyright (c) Microsoft Corporation
@@ -28,6 +28,7 @@
 
 module powerbi.visuals {
     import createClassAndSelector = jsCommon.CssConstants.createClassAndSelector;
+    import KeyUtils = jsCommon.KeyUtils;
     import StringExtensions = jsCommon.StringExtensions;
     import UrlUtils = jsCommon.UrlUtils;
 
@@ -41,6 +42,7 @@ module powerbi.visuals {
     
     /** Represents a rich text box that supports view & edit mode. */
     export class Textbox implements IVisual {
+        private static ClassName = 'textbox';
         private editor: RichText.QuillWrapper;
         private element: JQuery;
         private host: IVisualHostServices;
@@ -52,11 +54,6 @@ module powerbi.visuals {
             this.element = options.element;
             this.host = options.host;
             this.viewport = options.viewport;
-            this.element.addClass('richtextbox');
-            this.element.css({
-                'font-family': RichText.defaultFont,
-                'font-size': RichText.defaultFontSize,
-            });
 
             this.readOnly = (this.host.getViewMode() === ViewMode.View);
             this.paragraphs = [];
@@ -111,14 +108,19 @@ module powerbi.visuals {
                 // Showing just HTML, no editor.
                 // If we are in view-mode and we have an editor, we can remove it (after saving).
                 if (this.editor) {
-                    this.editor.formatUrls();
                     this.saveContents();
                     this.editor.destroy();
                     this.editor = null;
                 }
 
                 this.element.empty();
-                this.element.append(RichTextConversion.convertParagraphsToHtml(this.paragraphs));
+                let htmlContent = RichTextConversion.convertParagraphsToHtml(this.paragraphs);
+                htmlContent.addClass(Textbox.ClassName);
+                htmlContent.css({
+                    'font-family': RichText.defaultFont,
+                    'font-size': RichText.defaultFontSize,
+                });
+                this.element.append(htmlContent);
             }
             else {
                 // Showing the Quill editor.
@@ -128,7 +130,13 @@ module powerbi.visuals {
                     this.editor.textChanged = (delta, source) => this.saveContents();
 
                     this.element.empty();
-                    this.element.append(this.editor.getElement());
+                    let editorElement = this.editor.getElement();
+                    editorElement.addClass(Textbox.ClassName);
+                    editorElement.css({
+                        'font-family': RichText.defaultFont,
+                        'font-size': RichText.defaultFontSize,
+                    });
+                    this.element.append(editorElement);
                 }
 
                 this.editor.setContents(RichTextConversion.convertParagraphsToOps(this.paragraphs));
@@ -263,7 +271,7 @@ module powerbi.visuals {
                     if (styleDef) {
                         let css = {};
                         if (styleDef.fontFamily) {
-                            css['font-family'] = RichText.getFontFamily(removeQuotes(styleDef.fontFamily));
+                            css['font-family'] = RichText.getCssFontFamily(removeQuotes(styleDef.fontFamily));
                         }
 
                         if (styleDef.fontSize) {
@@ -336,7 +344,7 @@ module powerbi.visuals {
                     let styleDef = textRunDef.textStyle;
                     if (styleDef) {
                         if (styleDef.fontFamily) {
-                            formats.font = RichText.getFontFamily(removeQuotes(styleDef.fontFamily));
+                            formats.font = RichText.getCssFontFamily(removeQuotes(styleDef.fontFamily));
                         }
 
                         if (styleDef.fontSize) {
@@ -381,9 +389,13 @@ module powerbi.visuals {
                 style.fontWeight = 'bold';
             }
             if (attributes.font) {
-                // TODO: "Heading"?
-                // NOTE: We should always save font names without any quotes.
-                style.fontFamily = removeQuotes(attributes.font);
+                // We should always save font names without any quotes.
+                let font = removeQuotes(attributes.font);
+
+                // Convert built-in font families back into their proper font families (e.g. wf_segoe-ui_normal -> Segoe UI)
+                font = RichText.getFontFamilyForBuiltInFont(font);
+
+                style.fontFamily = font;
             }
             if (attributes.italic) {
                 style.fontStyle = 'italic';
@@ -456,10 +468,14 @@ module powerbi.visuals {
             'Trebuchet MS',
             'Verdana',
             'Wingdings',
-            'Wingdings 2',
-            'Wingdings 3',
-        ].map((font) => <ListValueOption> { label: font, value: getFontFamily(font) });
-        export let defaultFont = getFontFamily('Segoe UI Light');
+
+            // Fonts with numbers in the name do not work properly on Chrome. We'd need to quote the font names which causes problems with QuillJS.
+            // TFS6832899
+            //'Wingdings 2',
+            //'Wingdings 3',
+
+        ].map((font) => <ListValueOption>{ label: font, value: getCssFontFamily(font) });
+        export let defaultFont = getCssFontFamily('Segoe UI Light');
 
         const fontSizes: ListValueOption[] = [
             '8', '9', '10', '10.5', '11', '12', '14', '16', '18', '20', '24', '28', '32', '36', '40', '42', '44', '54', '60', '66', '72', '80', '88', '96'
@@ -470,19 +486,25 @@ module powerbi.visuals {
             'Left',
             'Center',
             'Right',
-        ].map((alignment) => <ListValueOption> { label: alignment, value: alignment.toLowerCase() });
+        ].map((alignment) => <ListValueOption>{ label: alignment, value: alignment.toLowerCase() });
 
-        export function getFontFamily(font: string): string {
+        /**
+         * Given a font family returns the value we should use for the font-family css property.
+         */
+        export function getCssFontFamily(font: string): string {
             let family: string = fontMap[font];
             if (family == null)
                 family = font;
 
-            // Quote the font in case it has spaces (which will confuse the JQuery css() call).
-            if (!StringExtensions.startsWith(family, "'")) {
-                family = "'" + family + "'";
-            }
-
             return family;
+        }
+
+        /**
+         * Convert built-in font families back into their proper font families (e.g. wf_segoe-ui_normal -> Segoe UI)
+         */
+        export function getFontFamilyForBuiltInFont(font: string): string {
+            let fontFamily = _.findKey(fontMap, (value) => value === font);
+            return fontFamily || font;
         }
 
         export class QuillWrapper {
@@ -494,14 +516,6 @@ module powerbi.visuals {
             private localizationProvider: jsCommon.IStringResourceProvider;
             private host: IVisualHostServices;
             private static textChangeThrottle = 200; // ms
-            private static formatUrlThrottle = 1000; // ms
-
-            public static preventDefaultKeys: number[] = [
-                jsCommon.DOMConstants.aKeyCode,  // A
-                jsCommon.DOMConstants.cKeyCode,  // C
-                jsCommon.DOMConstants.xKeyCode,  // X
-                jsCommon.DOMConstants.vKeyCode,  // V
-            ];
 
             public static loadQuillResources: boolean = true;
 
@@ -529,10 +543,12 @@ module powerbi.visuals {
             constructor(readOnly: boolean, host: IVisualHostServices) {
                 this.host = host;
                 this.$container = $('<div>');
+
                 this.readOnly = readOnly;
 
                 this.localizationProvider = {
-                    get: (stringId: string) => this.host.getLocalizedString(stringId)
+                    get: (stringId: string) => this.host.getLocalizedString(stringId),
+                    getOptional: (stringId: string) => this.host.getLocalizedString(stringId)
                 };
 
                 this.dependenciesLoaded = $.Deferred<void>();
@@ -580,7 +596,6 @@ module powerbi.visuals {
                 this.editor.setHTML('', 'api');  // Clear contents
                 if (contents)
                     this.editor.setContents(contents, 'api');
-                this.formatUrls();
             }
 
             public resize(viewport: IViewport): void {
@@ -595,25 +610,6 @@ module powerbi.visuals {
                 if (this.initialized && readOnlyChanged) {
                     this.rebuildQuillEditor();
                 }
-            }
-
-            public formatUrls(): void {
-                if (this.editor == null)
-                    return;
-
-                let text = this.editor.getText();
-
-                let urlMatches = UrlUtils.findAllValidUrls(text);
-                for (let match of urlMatches) {
-                    // Remove existing link
-                    this.editor.formatText(match.start, match.end, 'link', false, 'api');
-
-                    // Format as link
-                    this.editor.formatText(match.start, match.end, 'link', match.text, 'api');
-                }
-
-                // Force link tooltip to update on URL change
-                this.editor.emit(Quill.events.SELECTION_CHANGE, this.getSelection(), 'api');
             }
 
             public setSelection(start: number, end: number): void {
@@ -668,6 +664,9 @@ module powerbi.visuals {
                 this.editor.insertText(index, link, 'api');
                 this.editor.formatText(index, endIndex, 'link', link, 'api');
                 this.setSelection(index, endIndex);
+
+                this.onTextChanged(null, null);
+
                 return endIndex;
             }
 
@@ -693,7 +692,12 @@ module powerbi.visuals {
                 // Prevent parent elements from handling keyboard shortcuts (e.g. ctrl+a) that have special meaning for textboxes.
                 // Quill will also capture and prevent bubbling of some keyboard shortcuts, such as ctrl+c, ctrl+b, etc.
                 this.$container.keydown((e) => {
-                    if (e.ctrlKey && _.contains(QuillWrapper.preventDefaultKeys, e.which))
+                    let which = e.which;
+
+                    if (e.ctrlKey && KeyUtils.isCtrlDefaultKey(which))
+                        e.stopPropagation();
+
+                    if (KeyUtils.isArrowKey(which) || KeyUtils.isNudgeModifierKey(which))
                         e.stopPropagation();
                 });
 
@@ -735,13 +739,6 @@ module powerbi.visuals {
                 this.editor.on('text-change', (delta, source) => {
                     if (source !== 'api')
                         textChangeThrottler.run(() => this.onTextChanged(delta, source));
-                });
-
-                // TODO: Actually, probably want something that continually defers until you stop typing, this is probably fine for now though.
-                let formatUrlThrottler = new jsCommon.ThrottleUtility(QuillWrapper.formatUrlThrottle);
-                this.editor.on('text-change', (delta, source) => {
-                    if (source !== 'api')
-                        formatUrlThrottler.run(() => this.formatUrls());
                 });
 
                 /*

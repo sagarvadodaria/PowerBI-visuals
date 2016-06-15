@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Power BI Visualizations
  *
  *  Copyright (c) Microsoft Corporation
@@ -116,6 +116,7 @@ module powerbi {
                 if (descriptor.misc.image) return ValueType.fromExtendedType(ExtendedType.Image);
                 if (descriptor.misc.imageUrl) return ValueType.fromExtendedType(ExtendedType.ImageUrl);
                 if (descriptor.misc.webUrl) return ValueType.fromExtendedType(ExtendedType.WebUrl);
+                if (descriptor.misc.barcode) return ValueType.fromExtendedType(ExtendedType.Barcode_Text);
             }
             if (descriptor.formatting) {
                 if (descriptor.formatting.color) return ValueType.fromExtendedType(ExtendedType.Color);
@@ -127,6 +128,9 @@ module powerbi {
             }
             if (descriptor.extendedType) {
                 return ValueType.fromExtendedType(descriptor.extendedType);
+            }
+            if (descriptor.operations) {
+                if (descriptor.operations.searchEnabled) return ValueType.fromExtendedType(ExtendedType.SearchEnabled);
             }
 
             return ValueType.fromExtendedType(ExtendedType.Null);
@@ -163,6 +167,22 @@ module powerbi {
             return new ValueType(ExtendedType.Enumeration, null, enumType);
         }
 
+        /** Determines if the specified type is compatible from at least one of the otherTypes. */
+        public static isCompatibleTo(type: ValueTypeDescriptor, otherTypes: ValueTypeDescriptor[]): boolean {
+            debug.assertValue(type, 'type');
+            debug.assertValue(otherTypes, 'otherTypes');
+
+            let valueType = ValueType.fromDescriptor(type);
+            for (let otherType of otherTypes) {
+                let otherValueType = ValueType.fromDescriptor(otherType);
+
+                if (otherValueType.isCompatibleFrom(valueType))
+                    return true;
+            }
+
+            return false;
+        }
+
         /** Determines if the instance ValueType is convertable from the 'other' ValueType. */
         public isCompatibleFrom(other: ValueType): boolean {
             debug.assertValue(other, 'other');
@@ -173,6 +193,15 @@ module powerbi {
                 otherPrimitiveType === PrimitiveType.Null)
                 return true;
             return false;
+        }
+
+        /**
+         * Determines if the instance ValueType is equal to the 'other' ValueType
+         * @param {ValueType} other the other ValueType to check equality against
+         * @returns True if the instance ValueType is equal to the 'other' ValueType
+         */
+        public equals(other: ValueType): boolean {
+            return _.isEqual(this, other);
         }
 
         /** Gets the exact primitive type of this ValueType. */
@@ -355,6 +384,9 @@ module powerbi {
         public get webUrl(): boolean {
             return matchesExtendedTypeWithAnyPrimitive(this.underlyingType, ExtendedType.WebUrl);
         }
+        public get barcode(): boolean {
+            return matchesExtendedTypeWithAnyPrimitive(this.underlyingType, ExtendedType.Barcode);
+        }
     }
 
     export class FormattingType implements FormattingTypeDescriptor {
@@ -468,6 +500,10 @@ module powerbi {
         Image = Binary | Miscellaneous | (200 << 16),
         ImageUrl = Text | Miscellaneous | (201 << 16),
         WebUrl = Text | Miscellaneous | (202 << 16),
+        Barcode =  Miscellaneous | (203 << 16),
+        Barcode_Text = Barcode | Text,
+        Barcode_Integer = Barcode | Integer,
+
         // Formatting
         Color = Text | Formatting | (300 << 16),
         FormatString = Text | Formatting | (301 << 16),
@@ -481,6 +517,9 @@ module powerbi {
         ScriptSource = Text | Scripting | (500 << 16),        
         // NOTE: To avoid confusion, underscores should be used only to delimit primitive type variants of an extended type
         // (e.g. Year_Integer or Latitude_Double above)
+
+        //Operations
+        SearchEnabled = Boolean | (1 << 16),
     }
 
     const PrimitiveTypeMask = 0xFF;

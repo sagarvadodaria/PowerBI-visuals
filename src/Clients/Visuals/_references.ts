@@ -153,6 +153,7 @@
 /// <reference path="./visuals/verticalSlicer.ts"/>
 /// <reference path="./visuals/horizontalSlicer.ts"/>
 /// <reference path="./visuals/slicer.ts"/>
+/// <reference path="./visuals/ddslicer.ts"/>
 /// <reference path="./visuals/table.ts"/>
 /// <reference path="./visuals/matrix.ts"/>
 /// <reference path="./visuals/treemap.ts"/>

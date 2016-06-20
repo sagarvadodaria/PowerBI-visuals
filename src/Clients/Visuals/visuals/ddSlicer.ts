@@ -1,6 +1,9 @@
-﻿module powerbi.visuals {
+﻿
+module powerbi.visuals {
     export interface DropdownSlicerBehaviorOptions {
         slicerContainer: D3.Selection;
+        slicerA: D3.Selection;
+        slicerUL: D3.Selection;
         itemLabels: D3.Selection;
         clear: D3.Selection;
         dataPoints: DropdownSlicerDataPoint[];
@@ -17,21 +20,22 @@
         private dataPoints: DropdownSlicerDataPoint[];
         private interactivityService: IInteractivityService;
         private settings: DropdownSlicerSettings;
-
+        private slicerA: D3.Selection;
+        private slicerUL: D3.Selection;
         public renderSelection(hasSelection: boolean): void {
             this.setSelectionOnSlicerItems(this.itemInputs, this.itemLabels, hasSelection, this.interactivityService, this.settings);
         }
 
         public bindEvents(options: DropdownSlicerBehaviorOptions, selectionHandler: ISelectionHandler): void {
             var slicers = options.itemContainers;
-
             this.itemLabels = options.itemLabels;
             this.itemInputs = options.itemInputs;
             this.dataPoints = options.dataPoints;
             this.interactivityService = options.interactivityService;
             this.settings = options.settings;
-
-            this.bindSlicerEvents(options.slicerContainer, slicers, options.clear, selectionHandler, this.settings, this.interactivityService, options.searchInput);
+            this.slicerA = options.slicerA;
+            this.slicerUL = options.slicerUL;
+            this.bindSlicerEvents(options.slicerContainer, slicers, options.clear, selectionHandler, this.settings, this.interactivityService, options.slicerA, options.slicerUL, options.searchInput);
         }
 
 
@@ -42,12 +46,32 @@
             selectionHandler: ISelectionHandler,
             slicerSettings: DropdownSlicerSettings,
             interactivityService: IInteractivityService,
+            slicerA: D3.Selection,
+            slicerUL: D3.Selection,
             slicerSearch?: D3.Selection): void {
 
             this.bindSlicerItemSelectionEvent(slicers, selectionHandler, slicerSettings, interactivityService);
             this.bindSlicerClearEvent(slicerClear, selectionHandler);
            
             this.styleSlicerContainer(slicerContainer, interactivityService);
+
+            slicerA.on("click", function () {
+                $(slicerContainer.node()).parents(".vcBody").css("overflow", "visible");
+                $(slicerUL.node()).slideToggle('fast');
+                d3.event.preventDefault();
+            });
+            
+            slicerContainer.on("click", function () {
+                if (d3.event.defaultPrevented)
+                {
+                    return;
+                }
+                if ($(slicerUL.node()).css('display').toLowerCase() != "none") {
+                    $(slicerUL.node()).slideUp();
+                }
+            });
+
+           
         }
 
         private bindSlicerItemSelectionEvent(slicers: D3.Selection, selectionHandler: ISelectionHandler, slicerSettings: DropdownSlicerSettings, interactivityService: IInteractivityService): void {
@@ -60,6 +84,22 @@
                     selectionHandler.handleSelection(d, this.isMultiSelect(d3.event, slicerSettings, interactivityService));
                 }
                 selectionHandler.persistSelectionFilter(slicerProps.filterPropertyIdentifier);
+                var dropdownText = "";
+                var selectedItems = this.slicerUL.selectAll("input[type='checkbox']:checked");
+                selectedItems.each((d: DropdownSlicerDataPoint) => {
+                    dropdownText += d.value + ", ";
+                });
+
+                var tooltip = dropdownText.substr(0, dropdownText.length - 2);
+                if (selectedItems[0].length > 3) {
+                    dropdownText = selectedItems[0].length + " selected";
+                }
+                else {
+                    dropdownText = tooltip;
+                }
+                
+                this.slicerA.select(".dropdownText").text(dropdownText);
+                this.slicerA.attr("title", tooltip);
             });
         }
 
@@ -69,6 +109,8 @@
                 slicerClear.on("click", (d: SelectableDataPoint) => {
                     selectionHandler.handleClearSelection();
                     selectionHandler.persistSelectionFilter(slicerProps.filterPropertyIdentifier);
+
+                    this.slicerA.select(".dropdownText").text("None selected");
                 });
             }
         }
@@ -393,6 +435,8 @@
         viewport(viewport: IViewport): IDropdownView;
         render(): void;
         empty(): void;
+        slicerA: D3.Selection;
+        slicerUL: D3.Selection;
     }
 
     export module DropdownViewFactory {
@@ -424,11 +468,12 @@
 
         private options: DropdownViewOptions;
         private visibleGroupContainer: D3.Selection;
-        private scrollContainer: D3.Selection;
-        private scrollbarInner: D3.Selection;
+        //private scrollContainer: D3.Selection;
+        //private scrollbarInner: D3.Selection;
         private cancelMeasurePass: () => void;
         private renderTimeoutId: number;
-        
+        public slicerA: D3.Selection;
+        public slicerUL: D3.Selection;
         /**
          * The value indicates the percentage of data already shown
          * in the list view that triggers a loadMoreData call.
@@ -440,20 +485,30 @@
             // make a copy of options so that it is not modified later by caller
             this.options = $.extend(true, {}, options);
 
-            this.scrollbarInner = options.baseContainer
-                .append('div')
-                .classed('scrollbar-inner', true)
-                .on('scroll', () => this.renderImpl(this.options.rowHeight));
+            //this.scrollbarInner = options.baseContainer
+            //    .append('div')
+            //    .classed('scrollbar-inner', true)
+            //    .on('scroll', () => this.renderImpl(this.options.rowHeight));
 
-            this.scrollContainer = this.scrollbarInner
-                .append('div')
-                .classed('scrollRegion', true)
-                .on('touchstart', () => this.stopTouchPropagation())
-                .on('touchmove', () => this.stopTouchPropagation());
+            //this.scrollContainer = this.scrollbarInner
+            //    .append('div')
+            //    .classed('scrollRegion', true)
+            //    .on('touchstart', () => this.stopTouchPropagation())
+            //    .on('touchmove', () => this.stopToucappaphPropagation());
 
-            this.visibleGroupContainer = this.scrollContainer
+            var dropdown = options.baseContainer.append('dl').classed('dropdown', true);
+            var term = dropdown.append('dt');
+            
+            var dtA = this.slicerA = term.append('a').attr('xlink:href', '#');
+            var dtAS = dtA.append('span').classed('dropdownText', true).text("None selected");
+            var caret = dtA.append('b').classed('caret', true);
+            var descriptions = dropdown.append('dd');
+            var descDIV = descriptions.append('div').classed("mutliSelect", true);
+            var descriptionsUL = this.slicerUL = descDIV.append('ul');
+            this.visibleGroupContainer = descriptionsUL
                 .append('div')
                 .classed('visibleGroup', true);
+           
 
             $(options.baseContainer.node()).find('.scroll-element').attr('drag-resize-disabled', 'true');
 
@@ -473,8 +528,8 @@
             this._data = data;
             this.getDatumIndex = getDatumIndex;
             this.setTotalRows();
-            if (dataReset)
-                $(this.scrollbarInner.node()).scrollTop(0);
+            //if (dataReset)
+            //    $(this.scrollbarInner.node()).scrollTop(0);
 
             this.render();
             return this;
@@ -505,9 +560,9 @@
 
         private renderImpl(rowHeight: number): void {
             var totalHeight = this.options.scrollEnabled ? Math.max(0, (this._totalRows * rowHeight)) : this.options.viewport.height;
-            this.scrollContainer
-                .style('height', totalHeight + "px")
-                .attr('height', totalHeight);
+            //this.scrollContainer
+            //    .style('height', totalHeight + "px")
+            //    .attr('height', totalHeight);
 
             this.scrollToFrame(true /*loadMoreData*/);
         }
@@ -536,21 +591,22 @@
             var totalRows = this._totalRows;
             var rowHeight = options.rowHeight || DropdownView.defaultRowHeight;
             var visibleRows = this.getVisibleRows();
-            var scrollTop: number = this.scrollbarInner.node().scrollTop;
-            var scrollPosition = (scrollTop === 0) ? 0 : Math.floor(scrollTop / rowHeight);
-            var transformAttr = SVGUtil.translateWithPixels(0, scrollPosition * rowHeight);
+            //var scrollTop: number = this.scrollbarInner.node().scrollTop;
+            //var scrollPosition = (scrollTop === 0) ? 0 : Math.floor(scrollTop / rowHeight);
+            //var transformAttr = SVGUtil.translateWithPixels(0, scrollPosition * rowHeight);
 
-            visibleGroupContainer.style({
-                //order matters for proper overriding
-                'transform': d => transformAttr,
-                '-webkit-transform': transformAttr
-            });
+            //visibleGroupContainer.style({
+            //    //order matters for proper overriding
+            //    'transform': d => transformAttr,
+            //    '-webkit-transform': transformAttr
+            //});
 
-            var position0 = Math.max(0, Math.min(scrollPosition, totalRows - visibleRows + 1)),
-                position1 = position0 + visibleRows;
+           // var position0 = Math.max(0, Math.min(scrollPosition, totalRows - visibleRows + 1)),
+            //    position1 = position0 + visibleRows;
 
             var rowSelection = visibleGroupContainer.selectAll(".row")
-                .data(this._data.slice(position0, Math.min(position1, totalRows)), this.getDatumIndex);
+                //.data(this._data.slice(position0, Math.min(position1, totalRows)), this.getDatumIndex);
+                .data(this._data);
 
             rowSelection
                 .enter()
@@ -568,7 +624,7 @@
                 .call(d => options.exit(d))
                 .remove();
 
-            if (loadMoreData && visibleRows !== totalRows && position1 >= totalRows * DropdownView.loadMoreDataThreshold)
+            //if (loadMoreData && visibleRows !== totalRows && position1 >= totalRows * DropdownView.loadMoreDataThreshold)
                 options.loadMoreData();
         }
 
@@ -945,6 +1001,8 @@
         private header: D3.Selection;
         private body: D3.Selection;
         private container: D3.Selection;
+        private slicerA: D3.Selection;
+        private slicerUL: D3.Selection;
         private dropdownView: IDropdownView;
         private data: DropdownSlicerData;
         private settings: DropdownSlicerSettings;
@@ -1143,6 +1201,8 @@
                         interactivityService: interactivityService,
                         settings: data.slicerSettings,
                         searchInput: searchInput,
+                        slicerA: this.dropdownView.slicerA,
+                        slicerUL: this.dropdownView.slicerUL
                     };
                     interactivityService.bind(
                         data.slicerDataPoints,

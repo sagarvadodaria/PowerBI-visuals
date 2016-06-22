@@ -3,7 +3,7 @@ module powerbi.visuals {
     export interface DropdownSlicerBehaviorOptions {
         slicerContainer: D3.Selection;
         slicerA: D3.Selection;
-        slicerUL: D3.Selection;
+        slicerDD: D3.Selection;
         itemLabels: D3.Selection;
         clear: D3.Selection;
         dataPoints: DropdownSlicerDataPoint[];
@@ -21,7 +21,8 @@ module powerbi.visuals {
         private interactivityService: IInteractivityService;
         private settings: DropdownSlicerSettings;
         private slicerA: D3.Selection;
-        private slicerUL: D3.Selection;
+        private slicerDD: D3.Selection;
+
         public renderSelection(hasSelection: boolean): void {
             this.setSelectionOnSlicerItems(this.itemInputs, this.itemLabels, hasSelection, this.interactivityService, this.settings);
         }
@@ -34,8 +35,8 @@ module powerbi.visuals {
             this.interactivityService = options.interactivityService;
             this.settings = options.settings;
             this.slicerA = options.slicerA;
-            this.slicerUL = options.slicerUL;
-            this.bindSlicerEvents(options.slicerContainer, slicers, options.clear, selectionHandler, this.settings, this.interactivityService, options.slicerA, options.slicerUL, options.searchInput);
+            this.slicerDD = options.slicerDD;
+            this.bindSlicerEvents(options.slicerContainer, slicers, options.clear, selectionHandler, this.settings, this.interactivityService, options.slicerA, options.slicerDD, options.searchInput);
         }
 
 
@@ -47,7 +48,7 @@ module powerbi.visuals {
             slicerSettings: DropdownSlicerSettings,
             interactivityService: IInteractivityService,
             slicerA: D3.Selection,
-            slicerUL: D3.Selection,
+            slicerDD: D3.Selection,
             slicerSearch?: D3.Selection): void {
 
             this.bindSlicerItemSelectionEvent(slicers, selectionHandler, slicerSettings, interactivityService);
@@ -57,7 +58,13 @@ module powerbi.visuals {
 
             slicerA.on("click", function () {
                 $(slicerContainer.node()).parents(".vcBody").css("overflow", "visible");
-                $(slicerUL.node()).slideToggle('fast');
+                $(slicerContainer.node()).parents(".visualContainer").css("z-index", 999);
+                //$(slicerUL.node()).slideToggle('fast');
+                if ($(slicerDD.node()).css('visibility') == 'hidden')
+                    $(slicerDD.node()).css('visibility', 'visible');
+                else
+                    $(slicerDD.node()).css('visibility', 'hidden');
+
                 d3.event.preventDefault();
             });
             
@@ -66,8 +73,8 @@ module powerbi.visuals {
                 {
                     return;
                 }
-                if ($(slicerUL.node()).css('display').toLowerCase() != "none") {
-                    $(slicerUL.node()).slideUp();
+                if ($(slicerDD.node()).css('visibility').toLowerCase() != "hidden") {
+                    $(slicerDD.node()).css('visibility', 'hidden');
                 }
             });
 
@@ -83,21 +90,31 @@ module powerbi.visuals {
                 else {
                     selectionHandler.handleSelection(d, this.isMultiSelect(d3.event, slicerSettings, interactivityService));
                 }
-                selectionHandler.persistSelectionFilter(slicerProps.filterPropertyIdentifier);
-                var dropdownText = "";
-                var selectedItems = this.slicerUL.selectAll("input[type='checkbox']:checked");
-                selectedItems.each((d: DropdownSlicerDataPoint) => {
-                    dropdownText += d.value + ", ";
-                });
 
-                var tooltip = dropdownText.substr(0, dropdownText.length - 2);
-                if (selectedItems[0].length > 3) {
-                    dropdownText = selectedItems[0].length + " selected";
+                selectionHandler.persistSelectionFilter(slicerProps.filterPropertyIdentifier);
+
+                var dropdownText = "";
+                var tooltip = "";
+                var selectedItems = this.slicerDD.selectAll("input[type='checkbox']:checked");
+                if (selectedItems && selectedItems[0].length > 0) {
+                    selectedItems.each((d: DropdownSlicerDataPoint) => {
+                        dropdownText += d.value + ", ";
+                    });
+
+                    tooltip = dropdownText.substr(0, dropdownText.length - 2);
+                    if (selectedItems[0].length > 3) {
+                        dropdownText = selectedItems[0].length + " selected";
+                    }
+                    else {
+                        dropdownText = tooltip;
+                    }
                 }
-                else {
-                    dropdownText = tooltip;
+                else
+                {
+                    dropdownText = "None selected";
+                    tooltip = "None selected";
                 }
-                
+
                 this.slicerA.select(".dropdownText").text(dropdownText);
                 this.slicerA.attr("title", tooltip);
             });
@@ -436,7 +453,9 @@ module powerbi.visuals {
         render(): void;
         empty(): void;
         slicerA: D3.Selection;
-        slicerUL: D3.Selection;
+        slicerDD: D3.Selection;
+        scrollbarInner: D3.Selection;
+        ddHeight: number;
     }
 
     export module DropdownViewFactory {
@@ -468,12 +487,13 @@ module powerbi.visuals {
 
         private options: DropdownViewOptions;
         private visibleGroupContainer: D3.Selection;
-        //private scrollContainer: D3.Selection;
-        //private scrollbarInner: D3.Selection;
+        private scrollContainer: D3.Selection;
+        public scrollbarInner: D3.Selection;
         private cancelMeasurePass: () => void;
         private renderTimeoutId: number;
         public slicerA: D3.Selection;
-        public slicerUL: D3.Selection;
+        public slicerDD: D3.Selection;
+        public ddHeight: number;
         /**
          * The value indicates the percentage of data already shown
          * in the list view that triggers a loadMoreData call.
@@ -485,34 +505,36 @@ module powerbi.visuals {
             // make a copy of options so that it is not modified later by caller
             this.options = $.extend(true, {}, options);
 
-            //this.scrollbarInner = options.baseContainer
-            //    .append('div')
-            //    .classed('scrollbar-inner', true)
-            //    .on('scroll', () => this.renderImpl(this.options.rowHeight));
-
-            //this.scrollContainer = this.scrollbarInner
-            //    .append('div')
-            //    .classed('scrollRegion', true)
-            //    .on('touchstart', () => this.stopTouchPropagation())
-            //    .on('touchmove', () => this.stopToucappaphPropagation());
-
             var dropdown = options.baseContainer.append('dl').classed('dropdown', true);
             var term = dropdown.append('dt');
-            
+
             var dtA = this.slicerA = term.append('a').attr('xlink:href', '#');
             var dtAS = dtA.append('span').classed('dropdownText', true).text("None selected");
             var caret = dtA.append('b').classed('caret', true);
-            var descriptions = dropdown.append('dd');
-            var descDIV = descriptions.append('div').classed("mutliSelect", true);
-            var descriptionsUL = this.slicerUL = descDIV.append('ul');
-            this.visibleGroupContainer = descriptionsUL
+            var descriptions = this.slicerDD = dropdown.append('dd');
+            
+
+            this.scrollbarInner = descriptions
                 .append('div')
-                .classed('visibleGroup', true);
+                .classed('scrollbar-inner', true)
+                .on('scroll', () => this.renderImpl(this.options.rowHeight));
+
            
 
-            $(options.baseContainer.node()).find('.scroll-element').attr('drag-resize-disabled', 'true');
-
+            this.scrollContainer = this.scrollbarInner
+                .append('div')
+                .classed('scrollRegion', true)
+                .on('touchstart', () => this.stopTouchPropagation())
+                .on('touchmove', () => this.stopTouchPropagation());
+                          
+            
+            this.visibleGroupContainer = this.scrollContainer
+                .append('div')
+                .classed('visibleGroup', true);
+            
+           
             DropdownView.SetDefaultOptions(options);
+            
         }
 
         private static SetDefaultOptions(options: DropdownViewOptions) {
@@ -528,8 +550,8 @@ module powerbi.visuals {
             this._data = data;
             this.getDatumIndex = getDatumIndex;
             this.setTotalRows();
-            //if (dataReset)
-            //    $(this.scrollbarInner.node()).scrollTop(0);
+            if (dataReset)
+                $(this.scrollbarInner.node()).scrollTop(0);
 
             this.render();
             return this;
@@ -560,11 +582,14 @@ module powerbi.visuals {
 
         private renderImpl(rowHeight: number): void {
             var totalHeight = this.options.scrollEnabled ? Math.max(0, (this._totalRows * rowHeight)) : this.options.viewport.height;
-            //this.scrollContainer
-            //    .style('height', totalHeight + "px")
-            //    .attr('height', totalHeight);
-
+            this.scrollContainer
+                .style('height', totalHeight + "px")
+                .attr('height', totalHeight);
+           
             this.scrollToFrame(true /*loadMoreData*/);
+            this.ddHeight = (this._totalRows * this.options.rowHeight) + 25 >= 300 ? 300 : (this._totalRows * this.options.rowHeight + 25);
+            $(this.slicerDD.node()).css("height", this.ddHeight + "px");
+            $(this.slicerDD.node()).css("max-height", this.ddHeight + "px");
         }
 
         /*
@@ -577,7 +602,12 @@ module powerbi.visuals {
             //Stop the propagation only in read mode so the drag won't be affected.
             if (this.options.isReadMode()) {
                 if (d3.event.type === "touchstart") {
-                    
+                    //let event: TouchEvent = <any>d3.event;
+                    ////If there is another touch point outside this visual than the event should be propagated.
+                    ////This way the pinch to zoom will not be affected.
+                    //if (event.touches && event.touches.length === 1) {
+                    //    d3.event.stopPropagation();
+                    //}
                 }
                 if (d3.event.type === "touchmove") {
                     d3.event.stopPropagation();
@@ -591,22 +621,22 @@ module powerbi.visuals {
             var totalRows = this._totalRows;
             var rowHeight = options.rowHeight || DropdownView.defaultRowHeight;
             var visibleRows = this.getVisibleRows();
-            //var scrollTop: number = this.scrollbarInner.node().scrollTop;
-            //var scrollPosition = (scrollTop === 0) ? 0 : Math.floor(scrollTop / rowHeight);
-            //var transformAttr = SVGUtil.translateWithPixels(0, scrollPosition * rowHeight);
+            var scrollTop: number = this.scrollbarInner.node().scrollTop;
+            var scrollPosition = (scrollTop === 0) ? 0 : Math.floor(scrollTop / rowHeight);
+            var transformAttr = SVGUtil.translateWithPixels(0, scrollPosition * rowHeight);
 
-            //visibleGroupContainer.style({
-            //    //order matters for proper overriding
-            //    'transform': d => transformAttr,
-            //    '-webkit-transform': transformAttr
-            //});
+            visibleGroupContainer.style({
+                //order matters for proper overriding
+                'transform': d => transformAttr,
+                '-webkit-transform': transformAttr
+            });
 
-           // var position0 = Math.max(0, Math.min(scrollPosition, totalRows - visibleRows + 1)),
-            //    position1 = position0 + visibleRows;
+            var position0 = Math.max(0, Math.min(scrollPosition, totalRows - visibleRows + 1)),
+                position1 = position0 + visibleRows;
 
             var rowSelection = visibleGroupContainer.selectAll(".row")
-                //.data(this._data.slice(position0, Math.min(position1, totalRows)), this.getDatumIndex);
-                .data(this._data);
+                .data(this._data.slice(position0, Math.min(position1, totalRows)), this.getDatumIndex);
+               // .data(this._data);
 
             rowSelection
                 .enter()
@@ -624,7 +654,7 @@ module powerbi.visuals {
                 .call(d => options.exit(d))
                 .remove();
 
-            //if (loadMoreData && visibleRows !== totalRows && position1 >= totalRows * DropdownView.loadMoreDataThreshold)
+            if (loadMoreData && visibleRows !== totalRows && position1 >= totalRows * DropdownView.loadMoreDataThreshold)
                 options.loadMoreData();
         }
 
@@ -637,7 +667,8 @@ module powerbi.visuals {
             var minimumVisibleRows = 1;
             var options = this.options;
             var rowHeight = options.rowHeight;
-            var viewportHeight = options.viewport.height;
+            //var viewportHeight = options.viewport.height;
+            var viewportHeight = 300;
 
             if (!rowHeight || rowHeight < 1)
                 return minimumVisibleRows;
@@ -709,7 +740,6 @@ module powerbi.visuals {
     /** Helper module for converting a DataView into SlicerData. */
     export module DropdownSlicerDataConversion {
         export function convert(dataView: DataView, localizedSelectAllText: string, interactivityService: IInteractivityService | ISelectionHandler, hostServices: IVisualHostServices): DropdownSlicerData {
-            debug.assertValue(hostServices, 'hostServices');
             if (!dataView || !dataView.categorical || _.isEmpty(dataView.categorical.categories))
                 return;
 
@@ -1084,7 +1114,9 @@ module powerbi.visuals {
             };
 
             this.dropdownView = DropdownViewFactory.createDropdownView(dropdownViewOptions);
-
+            $(this.dropdownView.scrollbarInner.node()).scrollbar();
+           
+            $(this.body.node()).find('.scroll-element').attr('drag-resize-disabled', 'true');
             // Append container to DOM
             this.element.get(0).appendChild(containerDiv);
 
@@ -1202,7 +1234,7 @@ module powerbi.visuals {
                         settings: data.slicerSettings,
                         searchInput: searchInput,
                         slicerA: this.dropdownView.slicerA,
-                        slicerUL: this.dropdownView.slicerUL
+                        slicerDD: this.dropdownView.slicerDD
                     };
                     interactivityService.bind(
                         data.slicerDataPoints,
@@ -1380,10 +1412,8 @@ module powerbi.visuals {
         }
 
         public update(options: VisualUpdateOptions): void {
-            debug.assertValue(options, 'options');
 
             var dataViews = options.dataViews;
-            debug.assertValue(dataViews, 'dataViews');
 
             if (_.isEmpty(dataViews)) {
                 return;

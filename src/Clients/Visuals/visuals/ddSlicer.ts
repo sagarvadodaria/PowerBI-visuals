@@ -117,7 +117,7 @@ module powerbi.visuals {
                     }
                 }
                 else {
-                    if (!slicerSettings.selection.singleSelect) {
+                    if (!slicerSettings.dropdown.singleSelect) {
                         if (interactivityService.isSelectionModeInverted()) {
                             dropdownText = "Multiple selected";
                         }
@@ -173,7 +173,7 @@ module powerbi.visuals {
 
         private isMultiSelect(event: D3.D3Event, settings: DropdownSlicerSettings, interactivityService: IInteractivityService): boolean {
             return interactivityService.isSelectionModeInverted()
-                || !settings.selection.singleSelect
+                || !settings.dropdown.singleSelect
                 || event.ctrlKey;
         }
         
@@ -193,7 +193,7 @@ module powerbi.visuals {
                 if (input) {
                     input.property('checked', false);
                 }
-                itemLabel.style('color', slicerSettings.slicerText.color);
+                itemLabel.style('color', slicerSettings.dropdown.color);
              
             }
             else {
@@ -249,9 +249,6 @@ module powerbi.visuals {
                 
     }
 
-
-
-    // TODO: Generate these from above, defining twice just introduces potential for error
     export var dropdownSlicerProps = {
         general: {
             outlineColor: <DataViewObjectPropertyIdentifier>{ objectName: 'general', propertyName: 'outlineColor' },
@@ -260,9 +257,12 @@ module powerbi.visuals {
             count: <DataViewObjectPropertyIdentifier>{ objectName: 'general', propertyName: 'count' },
             selfFilterEnabled: <DataViewObjectPropertyIdentifier>{ objectName: 'general', propertyName: 'selfFilterEnabled' },
         },
-        selection: {
-            selectAllCheckboxEnabled: <DataViewObjectPropertyIdentifier>{ objectName: 'selection', propertyName: 'selectAllCheckboxEnabled' },
-            singleSelect: <DataViewObjectPropertyIdentifier>{ objectName: 'selection', propertyName: 'singleSelect' }
+        dropdown: {
+            selectAllCheckboxEnabled: <DataViewObjectPropertyIdentifier>{ objectName: 'dropdown', propertyName: 'selectAllCheckboxEnabled' },
+            singleSelect: <DataViewObjectPropertyIdentifier>{ objectName: 'dropdown', propertyName: 'singleSelect' },
+            fontColor: <DataViewObjectPropertyIdentifier>{ objectName: 'dropdown', propertyName: 'fontColor' },
+            background: <DataViewObjectPropertyIdentifier>{ objectName: 'dropdown', propertyName: 'background' },
+            textSize: <DataViewObjectPropertyIdentifier>{ objectName: 'dropdown', propertyName: 'textSize' },
         },
         header: {
             show: <DataViewObjectPropertyIdentifier>{ objectName: 'header', propertyName: 'show' },
@@ -271,20 +271,12 @@ module powerbi.visuals {
             outline: <DataViewObjectPropertyIdentifier>{ objectName: 'header', propertyName: 'outline' },
             textSize: <DataViewObjectPropertyIdentifier>{ objectName: 'header', propertyName: 'textSize' },
         },
-        items: {
-            fontColor: <DataViewObjectPropertyIdentifier>{ objectName: 'items', propertyName: 'fontColor' },
-            background: <DataViewObjectPropertyIdentifier>{ objectName: 'items', propertyName: 'background' },
-            outline: <DataViewObjectPropertyIdentifier>{ objectName: 'items', propertyName: 'outline' },
-            textSize: <DataViewObjectPropertyIdentifier>{ objectName: 'items', propertyName: 'textSize' },
-        },
         selectedPropertyIdentifier: <DataViewObjectPropertyIdentifier>{ objectName: 'general', propertyName: 'selected' },
         filterPropertyIdentifier: <DataViewObjectPropertyIdentifier>{ objectName: 'general', propertyName: 'filter' },
         selfFilterPropertyIdentifier: <DataViewObjectPropertyIdentifier>{ objectName: 'general', propertyName: 'selfFilter' },
         formatString: <DataViewObjectPropertyIdentifier>{ objectName: 'general', propertyName: 'formatString' },
         defaultValue: <DataViewObjectPropertyIdentifier>{ objectName: 'general', propertyName: 'defaultValue' },
     };
-
-
 
     import PixelConverter = jsCommon.PixelConverter;
 
@@ -338,9 +330,6 @@ module powerbi.visuals {
             }
         }
 
-        // Compare the sqExpr of the scopeId with sqExprs of the retained values. 
-        // If match found, remove the item from the retainedValues list, and return true, 
-        // otherwise return false.
         export function Dropdown_tryRemoveValueFromRetainedList(value: DataViewScopeIdentity, selectedScopeIds: DataViewScopeIdentity[], caseInsensitive?: boolean): boolean {
             if (!value || _.isEmpty(selectedScopeIds))
                 return false;
@@ -415,7 +404,7 @@ module powerbi.visuals {
             }
 
             public getRowHeight(settings: DropdownSlicerSettings, textProperties: TextProperties): number {
-                return TextMeasurementService.estimateSvgTextHeight(this.getTextProperties(settings.slicerText.textSize, textProperties)) + this.getRowsOutlineWidth(settings.slicerText.outline, settings.general.outlineWeight);
+                return TextMeasurementService.estimateSvgTextHeight(this.getTextProperties(settings.dropdown.textSize, textProperties));
             }
 
             public styleSlicerHeader(slicerHeader: D3.Selection, settings: DropdownSlicerSettings, headerText: string): void {
@@ -442,12 +431,9 @@ module powerbi.visuals {
             public setSlicerTextStyle(slicerText: D3.Selection, settings: DropdownSlicerSettings): void {
                 slicerText
                     .style({
-                        'color': settings.slicerText.color,
-                        'background-color': settings.slicerText.background,
-                        'border-style': 'solid',
+                        'color': settings.dropdown.color,
                         'border-color': settings.general.outlineColor,
-                        'border-width': VisualBorderUtil.getBorderWidth(settings.slicerText.outline, settings.general.outlineWeight),
-                        'font-size': PixelConverter.fromPoint(settings.slicerText.textSize),
+                        'font-size': PixelConverter.fromPoint(settings.dropdown.textSize),
                     });
             }
 
@@ -470,9 +456,8 @@ module powerbi.visuals {
             private setSlicerHeaderTextStyle(slicerHeader: D3.Selection, headerTextElement: D3.Selection, settings: DropdownSlicerSettings, searchEnabled: boolean): void {
                 var hideOutline = false;
 
-                // When search is enabled, we will hide the default outline if the outline properties haven't been customized by user.
                 if (searchEnabled) {
-                    var defaultSetting = Slicer.DefaultStyleProperties();
+                    var defaultSetting = DropdownSlicer.DefaultStyleProperties();
                     hideOutline = (settings.header.outline === defaultSetting.header.outline
                         && settings.general.outlineWeight === defaultSetting.general.outlineWeight
                         && settings.general.outlineColor === defaultSetting.general.outlineColor);
@@ -499,8 +484,6 @@ module powerbi.visuals {
             }
         }
     }
-
-
 
     export interface IDropdownView {
         data(data: any[], dataIdFunction: (d) => {}, dataAppended: boolean): IDropdownView;
@@ -532,10 +515,6 @@ module powerbi.visuals {
         isReadMode: () => boolean;
     }
 
-    /**
-     * A UI Virtualized List, that uses the D3 Enter, Update & Exit pattern to update rows.
-     * It can create lists containing either HTML or SVG elements.
-     */
     class DropdownView implements IDropdownView {
         private getDatumIndex: (d: any) => {};
         private _data: any[];
@@ -555,7 +534,6 @@ module powerbi.visuals {
         private static defaultRowHeight = 1;
 
         public constructor(options: DropdownViewOptions) {
-            // make a copy of options so that it is not modified later by caller
             this.options = $.extend(true, {}, options);
 
             var dropdown = options.baseContainer.append('dl').classed('dropdown', true);
@@ -640,17 +618,11 @@ module powerbi.visuals {
                 .attr('height', totalHeight);
            
             this.scrollToFrame(true /*loadMoreData*/);
-            this.ddHeight = (this._totalRows * this.options.rowHeight) + 25 >= 300 ? 300 : (this._totalRows * this.options.rowHeight + 25);
+            this.ddHeight = (this._totalRows * this.options.rowHeight) + 20 >= 300 ? 300 : (this._totalRows * this.options.rowHeight + 20);
             $(this.slicerDD.node()).css("height", this.ddHeight + "px");
             $(this.slicerDD.node()).css("max-height", this.ddHeight + "px");
         }
 
-        /*
-         *  This method is called in order to prevent a bug found in the Interact.js.
-         *  The bug is caused when finishing a scroll outside the scroll area.
-         *  In that case the Interact doesn't process a touchcancel event and thinks a touch point still exists.
-         *  since the Interact listens on the visualContainer, by stoping the propagation we prevent the bug from taking place.
-         */
         private stopTouchPropagation(): void {
             //Stop the propagation only in read mode so the drag won't be affected.
             if (this.options.isReadMode()) {
@@ -679,7 +651,6 @@ module powerbi.visuals {
             var transformAttr = SVGUtil.translateWithPixels(0, scrollPosition * rowHeight);
 
             visibleGroupContainer.style({
-                //order matters for proper overriding
                 'transform': d => transformAttr,
                 '-webkit-transform': transformAttr
             });
@@ -689,7 +660,6 @@ module powerbi.visuals {
 
             var rowSelection = visibleGroupContainer.selectAll(".row")
                 .data(this._data.slice(position0, Math.min(position1, totalRows)), this.getDatumIndex);
-               // .data(this._data);
 
             rowSelection
                 .enter()
@@ -720,7 +690,6 @@ module powerbi.visuals {
             var minimumVisibleRows = 1;
             var options = this.options;
             var rowHeight = options.rowHeight;
-            //var viewportHeight = options.viewport.height;
             var viewportHeight = 300;
 
             if (!rowHeight || rowHeight < 1)
@@ -757,16 +726,12 @@ module powerbi.visuals {
                 return deferred.resolve(options.rowHeight).promise();
             }
 
-            //render the first item to calculate the row height
             this.scrollToFrame(false /*loadMoreData*/);
             var requestAnimationFrameId = window.requestAnimationFrame(() => {
                 //measure row height
                 var rows = listView.visibleGroupContainer.select(".row");
                 if (!rows.empty()) {
                     var firstRow = rows.node();
-                    // If the container (child) has margins amd the row (parent) doesn't, the child's margins will collapse into the parent.
-                    // outerHeight doesn't report the correct height for the parent in this case, but it does measure the child properly.
-                    // Fix for #7497261 Measures both and take the max to work around this issue.
                     var rowHeight: number = Math.max($(firstRow).outerHeight(true), $(firstRow).children().first().outerHeight(true));
                     listView.rowHeight(rowHeight);
                     deferred.resolve(rowHeight);
@@ -790,7 +755,6 @@ module powerbi.visuals {
     import SemanticFilter = powerbi.data.SemanticFilter;
     import UrlUtils = jsCommon.UrlUtils;
 
-    /** Helper module for converting a DataView into SlicerData. */
     export module DropdownSlicerDataConversion {
         export function convert(dataView: DataView, localizedSelectAllText: string, interactivityService: IInteractivityService | ISelectionHandler, hostServices: IVisualHostServices): DropdownSlicerData {
             if (!dataView || !dataView.categorical || _.isEmpty(dataView.categorical.categories))
@@ -850,10 +814,8 @@ module powerbi.visuals {
                 isInvertedSelectionMode = analyzer.isNotFilter;
 
             if (interactivityService) {
-                // To indicate whether the selection is Not selected items
                 interactivityService.setSelectionModeInverted(isInvertedSelectionMode);
 
-                // defaultValueMode will be used when determine show/hide clear button.
                 interactivityService.setDefaultValueMode(SemanticFilter.isDefaultFilter(<SemanticFilter>analyzer.filter));
             }
 
@@ -903,14 +865,12 @@ module powerbi.visuals {
             if (!_.isEmpty(displayNameIdentityPairs))
                 hostServices.setIdentityDisplayNames(displayNameIdentityPairs);
 
-            // Add retained values that are not in the returned dataview to the value list.
             if (hasSelectionOverride && !_.isEmpty(selectedScopeIds)) {
 
                 var displayNamesIdentityPairs = hostServices.getIdentityDisplayNames(selectedScopeIds);
                 if (!_.isEmpty(displayNamesIdentityPairs)) {
                         for (var i = 0; i < displayNameIdentityPairs.length; i++) {
                             var pair = displayNamesIdentityPairs[i];
-                        // When there is no valueCounts, set count to be undefined, otherwise use 0 as the count for retained values
                         var slicerData: DropdownSlicerDataPoint = {
                             value: pair.displayName,
                             tooltip: pair.displayName,
@@ -926,8 +886,7 @@ module powerbi.visuals {
             }
 
             var defaultSettings = createDefaultSettings(dataViewMetadata);
-            if (defaultSettings.selection.selectAllCheckboxEnabled) {
-                //If selectAllCheckboxEnabled, and all the items are selected and there is no more data to request, then unselect all and toggle the invertedSelectionMode
+            if (defaultSettings.dropdown.selectAllCheckboxEnabled) {
                 if (numOfSelected > 0 && !dataViewMetadata.segment && numOfSelected === slicerDataPoints.length) {
                     isInvertedSelectionMode = !isInvertedSelectionMode;
                     interactivityService.setSelectionModeInverted(isInvertedSelectionMode);
@@ -977,16 +936,15 @@ module powerbi.visuals {
                 defaultSettings.header.outline = DataViewObjects.getValue<string>(objects, dropdownSlicerProps.header.outline, defaultSettings.header.outline);
                 defaultSettings.header.textSize = DataViewObjects.getValue<number>(objects, dropdownSlicerProps.header.textSize, defaultSettings.header.textSize);
 
-                defaultSettings.slicerText.color = DataViewObjects.getFillColor(objects, dropdownSlicerProps.items.fontColor, defaultSettings.slicerText.color);
-                var textBackground = DataViewObjects.getFillColor(objects, dropdownSlicerProps.items.background);
+                defaultSettings.dropdown.color = DataViewObjects.getFillColor(objects, dropdownSlicerProps.dropdown.fontColor, defaultSettings.dropdown.color);
+                var textBackground = DataViewObjects.getFillColor(objects, dropdownSlicerProps.dropdown.background);
                 if (textBackground)
-                    defaultSettings.slicerText.background = textBackground;
+                    defaultSettings.dropdown.background = textBackground;
 
-                defaultSettings.slicerText.outline = DataViewObjects.getValue<string>(objects, dropdownSlicerProps.items.outline, defaultSettings.slicerText.outline);
-                defaultSettings.slicerText.textSize = DataViewObjects.getValue<number>(objects, dropdownSlicerProps.items.textSize, defaultSettings.slicerText.textSize);
+                defaultSettings.dropdown.textSize = DataViewObjects.getValue<number>(objects, dropdownSlicerProps.dropdown.textSize, defaultSettings.dropdown.textSize);
 
-                defaultSettings.selection.selectAllCheckboxEnabled = !forceSingleSelect && DataViewObjects.getValue<boolean>(objects, dropdownSlicerProps.selection.selectAllCheckboxEnabled, defaultSettings.selection.selectAllCheckboxEnabled);
-                defaultSettings.selection.singleSelect = forceSingleSelect || DataViewObjects.getValue<boolean>(objects, dropdownSlicerProps.selection.singleSelect, defaultSettings.selection.singleSelect);
+                defaultSettings.dropdown.selectAllCheckboxEnabled = !forceSingleSelect && DataViewObjects.getValue<boolean>(objects, dropdownSlicerProps.dropdown.selectAllCheckboxEnabled, defaultSettings.dropdown.selectAllCheckboxEnabled);
+                defaultSettings.dropdown.singleSelect = forceSingleSelect || DataViewObjects.getValue<boolean>(objects, dropdownSlicerProps.dropdown.singleSelect, defaultSettings.dropdown.singleSelect);
                 defaultSettings.search.enabled = DataViewObjects.getValue<boolean>(objects, dropdownSlicerProps.general.selfFilterEnabled, defaultSettings.search.enabled);
             }
 
@@ -1057,13 +1015,10 @@ module powerbi.visuals {
             background?: string;
             textSize: number;
         };
-        slicerText: {
+        dropdown: {
             color: string;
-            outline: string;
             background?: string;
             textSize: number;
-        };
-        selection: {
             selectAllCheckboxEnabled: boolean;
             singleSelect: boolean;
         };
@@ -1104,7 +1059,6 @@ module powerbi.visuals {
             this.domHelper = options.domHelper;
         }
 
-        // SlicerDefaultValueHandler
         public getDefaultValue(): data.SQConstantExpr {
             if (this.data && this.data.defaultValue)
                 return <data.SQConstantExpr>this.data.defaultValue.value;
@@ -1170,7 +1124,6 @@ module powerbi.visuals {
             $(this.dropdownView.scrollbarInner.node()).scrollbar();
            
             $(this.body.node()).find('.scroll-element').attr('drag-resize-disabled', 'true');
-            // Append container to DOM
             this.element.get(0).appendChild(containerDiv);
 
             return interactivityService;
@@ -1204,7 +1157,7 @@ module powerbi.visuals {
 
         private updateSelectionStyle(): void {
             var settings = this.settings;
-            this.container.classed('isMultiSelectEnabled', settings && settings.selection && !settings.selection.singleSelect);
+            this.container.classed('isMultiSelectEnabled', settings && settings.dropdown && !settings.dropdown.singleSelect);
         }
 
         private onEnterSelection(rowSelection: D3.Selection): void {
@@ -1235,7 +1188,7 @@ module powerbi.visuals {
                 if (d.count != null) {
                     item.append('span')
                         .classed(DropdownSlicerUtil.DropdownSelectors.CountText.class, true)
-                        .style('font-size', PixelConverter.fromPoint(settings.slicerText.textSize));
+                        .style('font-size', PixelConverter.fromPoint(settings.dropdown.textSize));
                 }
             });
         }
@@ -1244,7 +1197,6 @@ module powerbi.visuals {
             var settings = this.settings;
             var data = this.data;
             if (data && settings) {
-                // Style Slicer Header
                 var domHelper = this.domHelper;
                 domHelper.styleSlicerHeader(this.header, settings, data.categorySourceName);
                 this.header.attr('title', data.categorySourceName);
@@ -1264,6 +1216,15 @@ module powerbi.visuals {
                     });
                 }
 
+                this.dropdownView.slicerA.style({
+                    'color': settings.dropdown.color,
+                    'background-color': settings.dropdown.background,
+                    'font-size': PixelConverter.fromPoint(settings.dropdown.textSize),
+                });
+
+                this.dropdownView.slicerDD.style({
+                    'background-color': settings.dropdown.background,
+                });
                 var countText = rowSelection.selectAll(DropdownSlicerUtil.DropdownSelectors.CountText.selector);
                 if (!countText.empty()) {
                     countText.text((d: SlicerDataPoint) => d.count);
@@ -1351,8 +1312,8 @@ module powerbi.visuals {
                         },
                     },
                 },
-                selection: {
-                    displayName: data.createDisplayNameGetter('Visual_SelectionControls'),
+                dropdown: {
+                    displayName: "Dropdown",
                     properties: {
                         selectAllCheckboxEnabled: {
                             displayName: data.createDisplayNameGetter('Visual_SelectAll'),
@@ -1361,9 +1322,31 @@ module powerbi.visuals {
                         singleSelect: {
                             displayName: data.createDisplayNameGetter('Visual_SingleSelect'),
                             type: { bool: true }
-                        }
-                    },
+                        },
+                        fontColor: StandardObjectProperties.fontColor,
+                        background: {
+                            displayName: data.createDisplayNameGetter('Visual_Background'),
+                            type: { fill: { solid: { color: true } } }
+                        },
+                        textSize: {
+                            displayName: data.createDisplayNameGetter('Visual_TextSize'),
+                            type: { numeric: true }
+                        },
+                    }
                 },
+                //selection: {
+                //    displayName: data.createDisplayNameGetter('Visual_SelectionControls'),
+                //    properties: {
+                //        selectAllCheckboxEnabled: {
+                //            displayName: data.createDisplayNameGetter('Visual_SelectAll'),
+                //            type: { bool: true }
+                //        },
+                //        singleSelect: {
+                //            displayName: data.createDisplayNameGetter('Visual_SingleSelect'),
+                //            type: { bool: true }
+                //        }
+                //    },
+                //},
                 header: {
                     displayName: data.createDisplayNameGetter('Visual_Header'),
                     properties: {
@@ -1379,22 +1362,22 @@ module powerbi.visuals {
                             type: { numeric: true }
                         },
                     }
-                },
-                items: {
-                    displayName: data.createDisplayNameGetter('Role_DisplayName_Items'),
-                    properties: {
-                        fontColor: StandardObjectProperties.fontColor,
-                        background: {
-                            displayName: data.createDisplayNameGetter('Visual_Background'),
-                            type: { fill: { solid: { color: true } } }
-                        },
-                        outline: StandardObjectProperties.outline,
-                        textSize: {
-                            displayName: data.createDisplayNameGetter('Visual_TextSize'),
-                            type: { numeric: true }
-                        },
-                    }
                 }
+                //items: {
+                //    displayName: data.createDisplayNameGetter('Role_DisplayName_Items'),
+                //    properties: {
+                //        fontColor: StandardObjectProperties.fontColor,
+                //        background: {
+                //            displayName: data.createDisplayNameGetter('Visual_Background'),
+                //            type: { fill: { solid: { color: true } } }
+                //        },
+                //        outline: StandardObjectProperties.outline,
+                //        textSize: {
+                //            displayName: data.createDisplayNameGetter('Visual_TextSize'),
+                //            type: { numeric: true }
+                //        },
+                //    }
+                //}
             },
             dataViewMappings: [{
                 conditions: [{ 'Values': { max: 1 } }],
@@ -1424,16 +1407,14 @@ module powerbi.visuals {
                     show: true,
                     outline: visuals.outline.bottomOnly,
                     fontColor: '#000000',
-                    textSize: 10,
+                    textSize: 14,
                 },
-                slicerText: {
-                    color: '#666666',
-                    outline: visuals.outline.none,
-                    textSize: 10,
-                },
-                selection: {
+                dropdown: {
+                    color: '#333',
+                    textSize: 14,
                     selectAllCheckboxEnabled: false,
                     singleSelect: true,
+                    background: '#efefef'
                 },
                 search: {
                     enabled: false,
@@ -1477,7 +1458,6 @@ module powerbi.visuals {
             this.dataView = dataViews[0];
 
         
-            // Reset scrollbar by default, unless it's an Append operation or Selecting an item
             var resetScrollbarPosition = options.operationKind !== VisualDataChangeOperationKind.Append
                 && !DataViewAnalysis.hasSameCategoryIdentity(existingDataView, this.dataView);
 
@@ -1493,14 +1473,12 @@ module powerbi.visuals {
             return DropdownObjectEnumerator.enumerateObjectInstances(options, this.slicerData, this.settings, this.dataView);
         }
 
-        // public for testability
         public loadMoreData(): void {
             var dataView = this.dataView;
             if (!dataView)
                 return;
 
             var dataViewMetadata = dataView.metadata;
-            // Making sure that hostservices.loadMoreData is not invoked when waiting for server to load the next segment of data
             if (!this.waitingForData && dataViewMetadata && dataViewMetadata.segment) {
                 this.hostServices.loadMoreData();
                 this.waitingForData = true;
@@ -1510,7 +1488,6 @@ module powerbi.visuals {
         public onClearSelection(): void {
             if (this.interactivityService) {
                 this.interactivityService.clearSelection();
-                // calls render so that default behavior can be applied after clear selection.
                 this.render(false /* resetScrollbarPosition */);
             }
         }
@@ -1548,15 +1525,13 @@ module powerbi.visuals {
                 return;
 
             switch (options.objectName) {
-                case 'items':
-                    return enumerateItems(data, settings);
                 case 'header':
                     return enumerateHeader(data, settings);
                 case 'general':
                     return enumerateGeneral(data, settings);
-                case 'selection':
+                case 'dropdown':
                     if (shouldShowSelectionOption(dataView))
-                        return enumerateSelection(data, settings);
+                        return enumerateDropdown(data, settings);
             }
         }
 
@@ -1567,20 +1542,29 @@ module powerbi.visuals {
                 _.some(dataView.metadata.columns, (column) => column.discourageAggregationAcrossGroups));
         }
 
-        function enumerateSelection(data: DropdownSlicerData, settings: DropdownSlicerSettings): VisualObjectInstance[] {
+        function enumerateDropdown(data: DropdownSlicerData, settings: DropdownSlicerSettings): VisualObjectInstance[] {
             var slicerSettings = settings;
-            var areSelectionSettingsDefined = SettingsHelper.areSettingsDefined(data) && data.slicerSettings.selection;
-            var selectAllCheckboxEnabled = areSelectionSettingsDefined && data.slicerSettings.selection.selectAllCheckboxEnabled ?
-                data.slicerSettings.selection.selectAllCheckboxEnabled : slicerSettings.selection.selectAllCheckboxEnabled;
-            var singleSelect = data && data.slicerSettings && data.slicerSettings.selection && data.slicerSettings.selection.singleSelect !== undefined ?
-                data.slicerSettings.selection.singleSelect : slicerSettings.selection.singleSelect;
+            var areSelectionSettingsDefined = SettingsHelper.areSettingsDefined(data) && data.slicerSettings.dropdown;
+            var selectAllCheckboxEnabled = areSelectionSettingsDefined && data.slicerSettings.dropdown.selectAllCheckboxEnabled ?
+                data.slicerSettings.dropdown.selectAllCheckboxEnabled : slicerSettings.dropdown.selectAllCheckboxEnabled;
+            var singleSelect = data && data.slicerSettings && data.slicerSettings.dropdown && data.slicerSettings.dropdown.singleSelect !== undefined ?
+                data.slicerSettings.dropdown.singleSelect : slicerSettings.dropdown.singleSelect;
+
+            var areTextSettingsDefined = SettingsHelper.areSettingsDefined(data) && data.slicerSettings.dropdown;
+            var fontColor = areTextSettingsDefined && data.slicerSettings.dropdown.color ?
+                data.slicerSettings.dropdown.color : slicerSettings.dropdown.color;
+            var background = areTextSettingsDefined && data.slicerSettings.dropdown.background ?
+                data.slicerSettings.dropdown.background : slicerSettings.dropdown.background;
 
             return [{
                 selector: null,
-                objectName: 'selection',
+                objectName: 'dropdown',
                 properties: {
                     selectAllCheckboxEnabled: selectAllCheckboxEnabled,
                     singleSelect: singleSelect,
+                    fontColor: fontColor,
+                    background: background,
+                    textSize: slicerSettings.dropdown.textSize,
                 }
             }];
         }
@@ -1601,25 +1585,6 @@ module powerbi.visuals {
                     background: background,
                     outline: slicerSettings.header.outline,
                     textSize: slicerSettings.header.textSize,
-                }
-            }];
-        }
-
-        function enumerateItems(data: DropdownSlicerData, settings: DropdownSlicerSettings): VisualObjectInstance[] {
-            var slicerSettings = settings;
-            var areTextSettingsDefined = SettingsHelper.areSettingsDefined(data) && data.slicerSettings.slicerText;
-            var fontColor = areTextSettingsDefined && data.slicerSettings.slicerText.color ?
-                data.slicerSettings.slicerText.color : slicerSettings.slicerText.color;
-            var background = areTextSettingsDefined && data.slicerSettings.slicerText.background ?
-                data.slicerSettings.slicerText.background : slicerSettings.slicerText.background;
-            return [{
-                selector: null,
-                objectName: 'items',
-                properties: {
-                    fontColor: fontColor,
-                    background: background,
-                    outline: slicerSettings.slicerText.outline,
-                    textSize: slicerSettings.slicerText.textSize,
                 }
             }];
         }

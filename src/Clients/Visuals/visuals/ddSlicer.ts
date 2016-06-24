@@ -12,6 +12,8 @@ module powerbi.visuals {
         itemContainers: D3.Selection;
         itemInputs: D3.Selection;
         searchInput: D3.Selection;
+        hasSelection: boolean;
+      
     }
 
     export class DropdownSlicerWebBehavior implements IInteractiveBehavior {
@@ -20,8 +22,9 @@ module powerbi.visuals {
         private dataPoints: DropdownSlicerDataPoint[];
         private interactivityService: IInteractivityService;
         private settings: DropdownSlicerSettings;
-        private slicerA: D3.Selection;
+        public slicerA: D3.Selection;
         private slicerDD: D3.Selection;
+        public selectedValues: string[] = [];
 
         public renderSelection(hasSelection: boolean): void {
             this.setSelectionOnSlicerItems(this.itemInputs, this.itemLabels, hasSelection, this.interactivityService, this.settings);
@@ -36,9 +39,15 @@ module powerbi.visuals {
             this.settings = options.settings;
             this.slicerA = options.slicerA;
             this.slicerDD = options.slicerDD;
+           
             this.bindSlicerEvents(options.slicerContainer, slicers, options.clear, selectionHandler, this.settings, this.interactivityService, options.slicerA, options.slicerDD, options.searchInput);
+            if (!options.hasSelection) {
+                var dropdownText = "None selected";
+                this.selectedValues.length = 0;
+                this.slicerA.select(".dropdownText").text(dropdownText);
+                this.slicerA.attr("title", dropdownText);
+            }
         }
-
 
         private bindSlicerEvents(
             slicerContainer: D3.Selection,
@@ -55,15 +64,19 @@ module powerbi.visuals {
             this.bindSlicerClearEvent(slicerClear, selectionHandler);
            
             this.styleSlicerContainer(slicerContainer, interactivityService);
+            var ddNode = $(slicerDD.node());
 
             slicerA.on("click", function () {
-                $(slicerContainer.node()).parents(".vcBody").css("overflow", "visible");
-                $(slicerContainer.node()).parents(".visualContainer").css("z-index", 999);
-                //$(slicerUL.node()).slideToggle('fast');
-                if ($(slicerDD.node()).css('visibility') == 'hidden')
-                    $(slicerDD.node()).css('visibility', 'visible');
-                else
-                    $(slicerDD.node()).css('visibility', 'hidden');
+                var containerNode = $(slicerContainer.node());
+                containerNode.parents(".vcBody").css("overflow", "visible");
+                containerNode.parents(".visualContainer").css("z-index", 999);
+
+                if (ddNode.css('visibility') == 'hidden') {
+                    ddNode.css('visibility', 'visible');
+                }
+                else {
+                    ddNode.css('visibility', 'hidden');
+                }
 
                 d3.event.preventDefault();
             });
@@ -73,15 +86,14 @@ module powerbi.visuals {
                 {
                     return;
                 }
-                if ($(slicerDD.node()).css('visibility').toLowerCase() != "hidden") {
-                    $(slicerDD.node()).css('visibility', 'hidden');
+                if (ddNode.css('visibility').toLowerCase() != "hidden") {
+                    ddNode.css('visibility', 'hidden');
                 }
             });
-
-           
         }
 
         private bindSlicerItemSelectionEvent(slicers: D3.Selection, selectionHandler: ISelectionHandler, slicerSettings: DropdownSlicerSettings, interactivityService: IInteractivityService): void {
+            
             slicers.on("click", (d: DropdownSlicerDataPoint) => {
                 d3.event.preventDefault();
                 if (d.isSelectAllDataPoint) {
@@ -92,31 +104,57 @@ module powerbi.visuals {
                 }
 
                 selectionHandler.persistSelectionFilter(slicerProps.filterPropertyIdentifier);
-
+              
                 var dropdownText = "";
-                var tooltip = "";
-                var selectedItems = this.slicerDD.selectAll("input[type='checkbox']:checked");
-                if (selectedItems && selectedItems[0].length > 0) {
-                    selectedItems.each((d: DropdownSlicerDataPoint) => {
-                        dropdownText += d.value + ", ";
-                    });
 
-                    tooltip = dropdownText.substr(0, dropdownText.length - 2);
-                    if (selectedItems[0].length > 3) {
-                        dropdownText = selectedItems[0].length + " selected";
+                if (d.isSelectAllDataPoint) {
+                    if (interactivityService.isSelectionModeInverted()) {
+                        dropdownText = "All selected";
                     }
                     else {
-                        dropdownText = tooltip;
+                        dropdownText = "None selected";
+                        this.selectedValues.length = 0;
                     }
                 }
-                else
-                {
-                    dropdownText = "None selected";
-                    tooltip = "None selected";
+                else {
+                    if (!slicerSettings.selection.singleSelect) {
+                        if (interactivityService.isSelectionModeInverted()) {
+                            dropdownText = "Multiple selected";
+                        }
+                        else {
+                            if (d.selected) {
+                                this.selectedValues.push(d.value);
+                            }
+                            else {
+                                this.selectedValues.splice(this.selectedValues.indexOf(d.value), 1);
+                            }
+                            if (this.selectedValues.length > 3) {
+                                dropdownText = this.selectedValues.length + " selected";
+                            }
+                            else {
+                                dropdownText = this.selectedValues.join(", ");
+                            }
+                        }
+                    }
+                    else {
+
+                        if (interactivityService.isSelectionModeInverted()) {
+                            dropdownText = "Multiple selected";
+                        }
+                        else {
+                            if (d.selected) {
+                                dropdownText = d.value;
+                            }
+                            else {
+                                dropdownText = "None selected";
+                                this.selectedValues.length = 0;
+                            }
+                        }
+                    }
                 }
 
                 this.slicerA.select(".dropdownText").text(dropdownText);
-                this.slicerA.attr("title", tooltip);
+                this.slicerA.attr("title", dropdownText);
             });
         }
 
@@ -128,13 +166,12 @@ module powerbi.visuals {
                     selectionHandler.persistSelectionFilter(slicerProps.filterPropertyIdentifier);
 
                     this.slicerA.select(".dropdownText").text("None selected");
+                    this.selectedValues.length = 0;
                 });
             }
         }
 
         private isMultiSelect(event: D3.D3Event, settings: DropdownSlicerSettings, interactivityService: IInteractivityService): boolean {
-            // If selection is inverted, assume we're always in multi-select mode;
-            // Also, Ctrl can be used to multi-select even in single-select mode.
             return interactivityService.isSelectionModeInverted()
                 || !settings.selection.singleSelect
                 || event.ctrlKey;
@@ -147,7 +184,9 @@ module powerbi.visuals {
         }
 
         private setSelectionOnSlicerItems(selectableItems: D3.Selection, itemLabel: D3.Selection, hasSelection: boolean, interactivityService: IInteractivityService, slicerSettings: DropdownSlicerSettings): void {
+           
             if (!hasSelection && !interactivityService.isSelectionModeInverted()) {
+
                 selectableItems.filter('.selected').classed('selected', false);
                 selectableItems.filter('.partiallySelected').classed('partiallySelected', false);
                 var input = selectableItems.selectAll('input');
@@ -155,40 +194,57 @@ module powerbi.visuals {
                     input.property('checked', false);
                 }
                 itemLabel.style('color', slicerSettings.slicerText.color);
+             
             }
             else {
+
                 DropdownSlicerWebBehavior.styleSlicerItems(selectableItems, hasSelection, interactivityService.isSelectionModeInverted());
             }
         }
             
-        public static  styleSlicerItems(slicerItems: D3.Selection, hasSelection: boolean, isSelectionInverted: boolean): void {
+        public static styleSlicerItems(slicerItems: D3.Selection, hasSelection: boolean, isSelectionInverted: boolean): void {
+           
             slicerItems.each(function (d: DropdownSlicerDataPoint) {
                 var slicerItem: HTMLElement = this;
                 var shouldCheck: boolean = false;
                 if (d.isSelectAllDataPoint) {
+
                     if (hasSelection) {
+
                         slicerItem.classList.add('partiallySelected');
                         shouldCheck = false;
                     }
                     else {
+
                         slicerItem.classList.remove('partiallySelected');
                         shouldCheck = isSelectionInverted;
                     }
                 }
                 else {
+
                     shouldCheck = jsCommon.LogicExtensions.XOR(d.selected, isSelectionInverted);
                 }
 
-                if (shouldCheck)
+                if (shouldCheck) {
+                   
                     slicerItem.classList.add('selected');
-                else
+                    
+                }
+                else {
+                   
+
                     slicerItem.classList.remove('selected');
+                }
 
                 // Set input selected state to match selection
                 var input = slicerItem.getElementsByTagName('input')[0];
-                if (input)
+                if (input) {
                     input.checked = shouldCheck;
+                    
+                }
             });
+           
+           
         }
                 
     }
@@ -494,10 +550,7 @@ module powerbi.visuals {
         public slicerA: D3.Selection;
         public slicerDD: D3.Selection;
         public ddHeight: number;
-        /**
-         * The value indicates the percentage of data already shown
-         * in the list view that triggers a loadMoreData call.
-         */
+       
         private static loadMoreDataThreshold = 0.8;
         private static defaultRowHeight = 1;
 
@@ -1234,7 +1287,8 @@ module powerbi.visuals {
                         settings: data.slicerSettings,
                         searchInput: searchInput,
                         slicerA: this.dropdownView.slicerA,
-                        slicerDD: this.dropdownView.slicerDD
+                        slicerDD: this.dropdownView.slicerDD,
+                        hasSelection: data.hasSelectionOverride
                     };
                     interactivityService.bind(
                         data.slicerDataPoints,
@@ -1421,6 +1475,8 @@ module powerbi.visuals {
 
             var existingDataView = this.dataView;
             this.dataView = dataViews[0];
+
+        
             // Reset scrollbar by default, unless it's an Append operation or Selecting an item
             var resetScrollbarPosition = options.operationKind !== VisualDataChangeOperationKind.Append
                 && !DataViewAnalysis.hasSameCategoryIdentity(existingDataView, this.dataView);

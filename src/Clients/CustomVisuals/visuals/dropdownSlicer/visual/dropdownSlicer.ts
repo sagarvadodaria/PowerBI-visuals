@@ -13,7 +13,7 @@ module powerbi.visuals {
         itemInputs: D3.Selection;
         searchInput: D3.Selection;
         hasSelection: boolean;
-
+      
     }
 
     export class DropdownSlicerWebBehavior implements IInteractiveBehavior {
@@ -39,7 +39,7 @@ module powerbi.visuals {
             this.settings = options.settings;
             this.slicerA = options.slicerA;
             this.slicerDD = options.slicerDD;
-
+           
             this.bindSlicerEvents(options.slicerContainer, slicers, options.clear, selectionHandler, this.settings, this.interactivityService, options.slicerA, options.slicerDD, options.searchInput);
             if (!options.hasSelection) {
                 var dropdownText = "None selected";
@@ -62,14 +62,15 @@ module powerbi.visuals {
 
             this.bindSlicerItemSelectionEvent(slicers, selectionHandler, slicerSettings, interactivityService);
             this.bindSlicerClearEvent(slicerClear, selectionHandler);
-
+           
             this.styleSlicerContainer(slicerContainer, interactivityService);
             var ddNode = $(slicerDD.node());
 
             slicerA.on("click", function () {
                 var containerNode = $(slicerContainer.node());
-                containerNode.parents(".vcBody").css("overflow", "visible");
-                containerNode.parents(".visualContainer").css("z-index", 999);
+               
+                //containerNode.parents(".vcBody").css("overflow", "visible");
+                //containerNode.parents(".visualContainer").css("z-index", 999);
 
                 if (ddNode.css('visibility') == 'hidden') {
                     ddNode.css('visibility', 'visible');
@@ -80,9 +81,10 @@ module powerbi.visuals {
 
                 d3.event.preventDefault();
             });
-
+            
             slicerContainer.on("click", function () {
-                if (d3.event.defaultPrevented) {
+                if (d3.event.defaultPrevented)
+                {
                     return;
                 }
                 if (ddNode.css('visibility').toLowerCase() != "hidden") {
@@ -92,7 +94,7 @@ module powerbi.visuals {
         }
 
         private bindSlicerItemSelectionEvent(slicers: D3.Selection, selectionHandler: ISelectionHandler, slicerSettings: DropdownSlicerSettings, interactivityService: IInteractivityService): void {
-
+            
             slicers.on("click", (d: DropdownSlicerDataPoint) => {
                 d3.event.preventDefault();
                 if (d.isSelectAllDataPoint) {
@@ -103,7 +105,7 @@ module powerbi.visuals {
                 }
 
                 selectionHandler.persistSelectionFilter(slicerProps.filterPropertyIdentifier);
-
+              
                 var dropdownText = "";
 
                 if (d.isSelectAllDataPoint) {
@@ -175,7 +177,7 @@ module powerbi.visuals {
                 || !settings.dropdown.singleSelect
                 || event.ctrlKey;
         }
-
+        
         private styleSlicerContainer(slicerContainer: D3.Selection, interactivityService: IInteractivityService) {
             var hasSelection = (interactivityService.hasSelection() && interactivityService.isDefaultValueEnabled() === undefined)
                 || interactivityService.isDefaultValueEnabled() === false;
@@ -183,7 +185,7 @@ module powerbi.visuals {
         }
 
         private setSelectionOnSlicerItems(selectableItems: D3.Selection, itemLabel: D3.Selection, hasSelection: boolean, interactivityService: IInteractivityService, slicerSettings: DropdownSlicerSettings): void {
-
+           
             if (!hasSelection && !interactivityService.isSelectionModeInverted()) {
 
                 selectableItems.filter('.selected').classed('selected', false);
@@ -193,16 +195,16 @@ module powerbi.visuals {
                     input.property('checked', false);
                 }
                 itemLabel.style('color', slicerSettings.dropdown.color);
-
+             
             }
             else {
 
                 DropdownSlicerWebBehavior.styleSlicerItems(selectableItems, hasSelection, interactivityService.isSelectionModeInverted());
             }
         }
-
+            
         public static styleSlicerItems(slicerItems: D3.Selection, hasSelection: boolean, isSelectionInverted: boolean): void {
-
+           
             slicerItems.each(function (d: DropdownSlicerDataPoint) {
                 var slicerItem: HTMLElement = this;
                 var shouldCheck: boolean = false;
@@ -225,12 +227,12 @@ module powerbi.visuals {
                 }
 
                 if (shouldCheck) {
-
+                   
                     slicerItem.classList.add('selected');
-
+                    
                 }
                 else {
-
+                   
 
                     slicerItem.classList.remove('selected');
                 }
@@ -239,13 +241,13 @@ module powerbi.visuals {
                 var input = slicerItem.getElementsByTagName('input')[0];
                 if (input) {
                     input.checked = shouldCheck;
-
+                    
                 }
             });
-
-
+           
+           
         }
-
+                
     }
 
     export var dropdownSlicerProps = {
@@ -528,13 +530,13 @@ module powerbi.visuals {
         public slicerA: D3.Selection;
         public slicerDD: D3.Selection;
         public ddHeight: number;
-
+       
         private static loadMoreDataThreshold = 0.8;
         private static defaultRowHeight = 1;
 
         public constructor(options: DropdownViewOptions) {
             this.options = $.extend(true, {}, options);
-
+            
             var dropdown = options.baseContainer.append('dl').classed('dropdown', true);
             var term = dropdown.append('dt');
 
@@ -542,29 +544,29 @@ module powerbi.visuals {
             var dtAS = dtA.append('span').classed('dropdownText', true).text("None selected");
             var caret = dtA.append('b').classed('caret', true);
             var descriptions = this.slicerDD = dropdown.append('dd');
-
+            
 
             this.scrollbarInner = descriptions
                 .append('div')
                 .classed('scrollbar-inner', true)
                 .on('scroll', () => this.renderImpl(this.options.rowHeight));
 
-
+           
 
             this.scrollContainer = this.scrollbarInner
                 .append('div')
                 .classed('scrollRegion', true)
                 .on('touchstart', () => this.stopTouchPropagation())
                 .on('touchmove', () => this.stopTouchPropagation());
-
-
+                          
+            
             this.visibleGroupContainer = this.scrollContainer
                 .append('div')
                 .classed('visibleGroup', true);
-
-
+            
+           
             DropdownView.SetDefaultOptions(options);
-
+            
         }
 
         private static SetDefaultOptions(options: DropdownViewOptions) {
@@ -615,7 +617,7 @@ module powerbi.visuals {
             this.scrollContainer
                 .style('height', totalHeight + "px")
                 .attr('height', totalHeight);
-
+           
             this.scrollToFrame(true /*loadMoreData*/);
             this.ddHeight = (this._totalRows * this.options.rowHeight) + 20 >= 300 ? 300 : (this._totalRows * this.options.rowHeight + 20);
             $(this.slicerDD.node()).css("height", this.ddHeight + "px");
@@ -769,53 +771,60 @@ module powerbi.visuals {
                 dataView.metadata.objects &&
                 DataViewObjects.getValue(dataView.metadata.objects, dropdownSlicerProps.filterPropertyIdentifier));
 
-            var analyzer = hostServices.analyzeFilter({
-                dataView: dataView,
-                defaultValuePropertyId: dropdownSlicerProps.defaultValue,
-                filter: filter,
-                fieldSQExprs: identityFields
-            });
-            if (!analyzer)
-                return;
+            //var analyzer = hostServices.analyzeFilter({
+            //    dataView: dataView,
+            //    defaultValuePropertyId: dropdownSlicerProps.defaultValue,
+            //    filter: filter,
+            //    fieldSQExprs: identityFields
+            //});
+            //if (!analyzer)
+            //    return;
 
-            var analyzedSemanticFilter = <SemanticFilter>analyzer.filter;
-            if (analyzedSemanticFilter && !SemanticFilter.isSameFilter(analyzedSemanticFilter, filter)) {
-                (<ISelectionHandler>interactivityService).handleClearSelection();
-                var filterPropertyIdentifier = dropdownSlicerProps.filterPropertyIdentifier;
-                var properties: { [propertyName: string]: DataViewPropertyValue } = {};
-                properties[filterPropertyIdentifier.propertyName] = analyzer.filter;
-                var instance = {
-                    objectName: filterPropertyIdentifier.objectName,
-                    selector: undefined,
-                    properties: properties
-                };
+            //var analyzedSemanticFilter = <SemanticFilter>analyzer.filter;
+            //if (analyzedSemanticFilter && !SemanticFilter.isSameFilter(analyzedSemanticFilter, filter)) {
+            //    (<ISelectionHandler>interactivityService).handleClearSelection();
+            //    var filterPropertyIdentifier = dropdownSlicerProps.filterPropertyIdentifier;
+            //    var properties: { [propertyName: string]: DataViewPropertyValue } = {};
+            //    properties[filterPropertyIdentifier.propertyName] = analyzer.filter;
+            //    var instance = {
+            //        objectName: filterPropertyIdentifier.objectName,
+            //        selector: undefined,
+            //        properties: properties
+            //    };
 
-                var changes: VisualObjectInstancesToPersist = {
-                    merge: [instance]
-                };
-                hostServices.persistProperties(changes);
-            }
+            //    var changes: VisualObjectInstancesToPersist = {
+            //        merge: [instance]
+            //    };
+            //    hostServices.persistProperties(changes);
+            //}
 
-            var slicerData = getSlicerData(analyzer, dataView.metadata, dataView.categorical, localizedSelectAllText, <IInteractivityService>interactivityService, hostServices);
+            var slicerData = getSlicerData(dataView,dataView.metadata, dataView.categorical, localizedSelectAllText, <IInteractivityService>interactivityService, hostServices, filter);
             return slicerData;
         }
 
         function getSlicerData(
-            analyzer: AnalyzedFilter,
+           dataView,
             dataViewMetadata: DataViewMetadata,
             categorical: DataViewCategorical,
-            localizedSelectAllText: string, interactivityService: IInteractivityService, hostServices: IVisualHostServices): DropdownSlicerData {
-            var isInvertedSelectionMode: boolean = interactivityService && interactivityService.isSelectionModeInverted();
-            var selectedScopeIds = analyzer.selectedIdentities;
+            localizedSelectAllText: string, interactivityService: IInteractivityService, hostServices: IVisualHostServices, filter:any): DropdownSlicerData {
+            var identityFields = dataView.categorical.categories[0].identityFields;
+            var selectedScopeIds;
+            var isInvertedSelectionMode: boolean;
+          
+            if (filter) {
+                var scopeIds = powerbi.data.SQExprConverter.asScopeIdsContainer(filter, identityFields);
+                isInvertedSelectionMode = interactivityService && interactivityService.isSelectionModeInverted();
+                selectedScopeIds = scopeIds.scopeIds;
+            }
 
             var hasSelectionOverride = !_.isEmpty(selectedScopeIds) || isInvertedSelectionMode === true;
-            if (!isInvertedSelectionMode && analyzer.filter)
-                isInvertedSelectionMode = analyzer.isNotFilter;
+            //if (!isInvertedSelectionMode && analyzer.filter)
+            //    isInvertedSelectionMode = analyzer.isNotFilter;
 
             if (interactivityService) {
-                interactivityService.setSelectionModeInverted(isInvertedSelectionMode);
+               // interactivityService.setSelectionModeInverted(isInvertedSelectionMode);
 
-                interactivityService.setDefaultValueMode(SemanticFilter.isDefaultFilter(<SemanticFilter>analyzer.filter));
+                //interactivityService.setDefaultValueMode(SemanticFilter.isDefaultFilter(<SemanticFilter>analyzer.filter));
             }
 
             var category = categorical.categories[0];
@@ -868,8 +877,8 @@ module powerbi.visuals {
 
                 var displayNamesIdentityPairs = hostServices.getIdentityDisplayNames(selectedScopeIds);
                 if (!_.isEmpty(displayNamesIdentityPairs)) {
-                    for (var i = 0; i < displayNameIdentityPairs.length; i++) {
-                        var pair = displayNamesIdentityPairs[i];
+                        for (var i = 0; i < displayNameIdentityPairs.length; i++) {
+                            var pair = displayNamesIdentityPairs[i];
                         var slicerData: DropdownSlicerDataPoint = {
                             value: pair.displayName,
                             tooltip: pair.displayName,
@@ -912,7 +921,7 @@ module powerbi.visuals {
                 slicerSettings: defaultSettings,
                 slicerDataPoints: slicerDataPoints,
                 hasSelectionOverride: hasSelectionOverride,
-                defaultValue: analyzer.defaultValue,
+                defaultValue: undefined,
             };
 
             return slicerDatax;
@@ -950,7 +959,7 @@ module powerbi.visuals {
             return defaultSettings;
         }
     }
-
+   
     import DisplayNameKeys = DropdownSlicerUtil.DropdownDisplayNameKeys;
     import DOMHelper = DropdownSlicerUtil.DropdownDOMHelper;
     import SettingsHelper = DropdownSlicerUtil.DropdownSettingsHelper;
@@ -1121,7 +1130,7 @@ module powerbi.visuals {
 
             this.dropdownView = DropdownViewFactory.createDropdownView(dropdownViewOptions);
             $(this.dropdownView.scrollbarInner.node()).scrollbar();
-
+           
             $(this.body.node()).find('.scroll-element').attr('drag-resize-disabled', 'true');
             this.element.get(0).appendChild(containerDiv);
 
@@ -1277,7 +1286,7 @@ module powerbi.visuals {
         private waitingForData: boolean;
         private domHelper: DOMHelper;
         private initOptions: VisualInitOptions;
-
+      
         public static capabilities: VisualCapabilities = {
             dataRoles: [
                 {
@@ -1439,7 +1448,7 @@ module powerbi.visuals {
             this.currentViewport = options.viewport;
             this.hostServices = options.host;
             var settings = this.settings = DropdownSlicer.DefaultStyleProperties();
-
+     
             this.waitingForData = false;
 
             this.initializeSlicerRenderer();
@@ -1456,7 +1465,7 @@ module powerbi.visuals {
             var existingDataView = this.dataView;
             this.dataView = dataViews[0];
 
-
+        
             var resetScrollbarPosition = options.operationKind !== VisualDataChangeOperationKind.Append
                 && !DataViewAnalysis.hasSameCategoryIdentity(existingDataView, this.dataView);
 
@@ -1595,7 +1604,7 @@ module powerbi.visuals {
                 data.slicerSettings.general.outlineColor : slicerSettings.general.outlineColor;
             var outlineWeight = areGeneralSettingsDefined && data.slicerSettings.general.outlineWeight ?
                 data.slicerSettings.general.outlineWeight : slicerSettings.general.outlineWeight;
-
+            
             return [{
                 selector: null,
                 objectName: 'general',

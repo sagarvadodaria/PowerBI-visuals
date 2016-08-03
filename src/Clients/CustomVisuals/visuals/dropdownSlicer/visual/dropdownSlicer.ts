@@ -292,7 +292,8 @@
                 }
             };
         }
-        private static isFirstLoad: boolean = false;
+
+        public static isFirstLoad: boolean = true;
 
         constructor(options?: DropdownSlicerConstructorOptions) {
             if (options) {
@@ -462,9 +463,7 @@
                 });
 
             var rowEnter = (rowSelection: D3.Selection) => {
-                if (rowSelection.length > 0 && rowSelection[0].length == 0) {
-                    DropdownSlicer.isFirstLoad = true;
-                }
+                
             };
 
             var rowUpdate = (rowSelection: D3.Selection) => {

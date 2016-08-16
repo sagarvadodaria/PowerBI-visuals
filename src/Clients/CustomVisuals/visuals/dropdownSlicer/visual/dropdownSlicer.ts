@@ -294,6 +294,7 @@
         }
 
         public static isFirstLoad: boolean = true;
+        public static isIE: boolean = false;
 
         constructor(options?: DropdownSlicerConstructorOptions) {
             if (options) {
@@ -342,6 +343,7 @@
         }
 
         public init(options: VisualInitOptions): void {
+            DropdownSlicer.isIE = this.detectIE();
             this.element = options.element;
             this.currentViewport = options.viewport;
             if (this.behavior) {
@@ -447,6 +449,44 @@
                 .render();
         }
 
+        private detectIE() {
+            var ua = window.navigator.userAgent;
+
+            // Test values; Uncomment to check result …
+
+            // IE 10
+            // ua = 'Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 6.2; Trident/6.0)';
+  
+            // IE 11
+            // ua = 'Mozilla/5.0 (Windows NT 6.3; Trident/7.0; rv:11.0) like Gecko';
+  
+            // Edge 12 (Spartan)
+            // ua = 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.71 Safari/537.36 Edge/12.0';
+  
+            // Edge 13
+            // ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/46.0.2486.0 Safari/537.36 Edge/13.10586';
+
+            var msie = ua.indexOf('MSIE ');
+            if (msie > 0) {
+                // IE 10 or older => return version number
+                return true;
+            }
+
+            var trident = ua.indexOf('Trident/');
+            if (trident > 0) {
+                return true;
+            }
+
+            var edge = ua.indexOf('Edge/');
+            if (edge > 0) {
+                // Edge (IE 12+) => return version number
+                return true;
+            }
+
+            // other browser
+            return false;
+        }
+
         private initContainer() {
             var settings: DropdownSlicerSettings = this.settings;
             var slicerBodyViewport: IViewport = this.getSlicerBodyViewport(this.currentViewport);
@@ -476,7 +516,9 @@
                         'color': settings.slicerText.fontColor,
                         'background': settings.slicerText.background
                     });
-                    var slicerText = rowSelection.text(d=> d.category);
+
+                    rowSelection.text(d=> d.category);
+                    rowSelection.attr("value", d=> d.category);
 
                     if (this.interactivityService && this.slicerBody) {
                         var slicerBody = this.slicerBody.attr('width', this.currentViewport.width);
@@ -501,11 +543,22 @@
 
                     if (DropdownSlicer.isFirstLoad) {
                         DropdownSlicer.isFirstLoad = false;
-                        var event = document.createEvent('Event');
-                        event.initEvent('change', true, true);
-                        dropdown.node().dispatchEvent(event);
-                    }
 
+                        if (DropdownSlicer.isIE) {
+                            window.setTimeout(() => {
+                                $(dropdown.node()).val(rowSelection.text());
+                                var event = document.createEvent('Event');
+                                event.initEvent('change', true, false);
+                                dropdown.node().dispatchEvent(event);
+                            }, 9000);
+                        }
+                        else
+                        {
+                            var event = document.createEvent('Event');
+                            event.initEvent('change', true, true);
+                            dropdown.node().dispatchEvent(event);
+                        }
+                    }
                 }
             };
 

@@ -550,7 +550,7 @@
                                 var event = document.createEvent('Event');
                                 event.initEvent('change', true, false);
                                 dropdown.node().dispatchEvent(event);
-                            }, 9000);
+                            }, 7000);
                         }
                         else
                         {
@@ -785,14 +785,27 @@
             this.dataPoints = options.dataPoints;
             this.interactivityService = options.interactivityService;
             this.slicerSettings = options.slicerSettings;
-            slicers.on("change", (data, index) => {
-                var x: any = slicers.property("value");
-                d3.event.preventDefault();
-                if (x === "Select All") {
-                    selectionHandler.handleClearSelection();
-                    selectionHandler.persistSelectionFilter(filterPropertyId);
-                }
-                else {
+            if (DropdownSlicer.isIE) {
+                slicers.on("change", (data, index) => {
+                    window.setTimeout(() => {
+                        var x: any = slicers.property("value");
+                        var elementPos = this.dataPoints.map(function (x) { return x.category; }).indexOf(x);
+                        var d = this.dataPoints[elementPos];
+
+                        if (!d.selectable) {
+                            return;
+                        }
+
+                        selectionHandler.handleSelection(d, false /* isMultiSelect */);
+                        selectionHandler.persistSelectionFilter(filterPropertyId);
+                    }, 2000);
+                });
+            }
+            else {
+                slicers.on("change", (data, index) => {
+                    var x: any = slicers.property("value");
+                    d3.event.preventDefault();
+
                     var elementPos = this.dataPoints.map(function (x) { return x.category; }).indexOf(x);
                     var d = this.dataPoints[elementPos];
 
@@ -802,9 +815,9 @@
 
                     selectionHandler.handleSelection(d, false /* isMultiSelect */);
                     selectionHandler.persistSelectionFilter(filterPropertyId);
-                }
-            });
 
+                });
+            }
         }
 
         public renderSelection(hasSelection: boolean): void {

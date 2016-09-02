@@ -550,7 +550,7 @@
                                 var event = document.createEvent('Event');
                                 event.initEvent('change', true, false);
                                 dropdown.node().dispatchEvent(event);
-                            }, 7000);
+                            }, 3500);
                         }
                         else
                         {
